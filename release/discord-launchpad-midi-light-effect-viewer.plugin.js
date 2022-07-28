@@ -1,3 +1,14 @@
+/**
+ * @name DiscordLaunchpadMIDILightEffectViewer
+ * @author Vexcited
+ * @version 0.0.1
+ * @description Launchpad MIDI visualizer for .mid files in Discord.
+ * 
+ * @website https://github.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer
+ */
+
+'use strict';
+
 const PATCH_CODE = `
 // _WEBMIDI_PATCH_START_
 const { app, session, ipcMain } = require("electron");    
@@ -46,7 +57,7 @@ const getOutputs = () => {
   }
 
   return outputs;
-}
+};
 
 class DiscordLaunchpadMIDILightEffectViewer {
   getName() { return "DiscordLaunchpadMIDILightEffectViewer" }
@@ -70,4 +81,4 @@ class DiscordLaunchpadMIDILightEffectViewer {
   stop() {}
 }
 
-export default DiscordLaunchpadMIDILightEffectViewer;
+module.exports = DiscordLaunchpadMIDILightEffectViewer;

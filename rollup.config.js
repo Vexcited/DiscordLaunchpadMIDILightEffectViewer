@@ -11,10 +11,12 @@ const BD_PLUGIN_BANNER = `\
 
 /** @type {import("rollup").RollupOptions} */
 const config = {
-  input: "src/betterdiscord/index.js",
+  input: "src/index.js",
   output: {
     file: "release/discord-launchpad-midi-light-effect-viewer.plugin.js",
     banner: BD_PLUGIN_BANNER,
+
+    exports: "default",
     format: "cjs"
   }
 };
