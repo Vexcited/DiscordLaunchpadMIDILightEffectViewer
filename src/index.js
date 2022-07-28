@@ -1,15 +1,5 @@
 class DiscordLaunchpadMIDILightEffectViewer {
-  load() {
-    console.log("loaded !");
-  }
-
-  start() {
-    console.log("started !");
-  }
-
-  stop() {
-    console.log("stoped !");
-  }
+  // TODO
 }
 
-export default DiscordLaunchpadMIDILightEffectViewer;
+module.exports = DiscordLaunchpadMIDILightEffectViewer;
