@@ -1,11 +1,13 @@
+import pkg from "./package.json";
+import json from '@rollup/plugin-json';
+
 const BD_PLUGIN_BANNER = `\
 /**
- * @name DiscordLaunchpadMIDILightEffectViewer
- * @author Vexcited
- * @version 0.0.1
- * @description Launchpad MIDI visualizer for .mid files in Discord.
- * 
- * @website https://github.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer
+ * @name ${pkg.className}
+ * @author ${pkg.author.name}
+ * @version ${pkg.version}
+ * @description ${pkg.description}
+ * @website ${pkg.homepage}
  */
 `;
 
@@ -18,7 +20,8 @@ const config = {
 
     exports: "default",
     format: "cjs"
-  }
+  },
+  plugins: [json()]
 };
 
 export default config;

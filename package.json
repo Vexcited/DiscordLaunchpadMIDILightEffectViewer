@@ -1,14 +1,21 @@
 {
   "name": "discord-launchpad-midi-light-effect-viewer",
+  "className": "DiscordLaunchpadMIDILightEffectViewer",
   "version": "0.0.1",
-  "description": "",
+  "description": "BetterDiscord plugin to visualize Launchpad light effects for .mid files in Discord",
+  "homepage": "https://github.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer",
   "scripts": {
     "prebuild": "rimraf release",
     "build": "rollup -c"
   },
-  "author": "Mikkel RINGAUD",
+  "author": {
+    "name": "Mikkel \"Vexcited\" RINGAUD",
+    "url": "https://github.com/Vexcited",
+    "email": "mikkel@milescode.dev"
+  },
   "license": "MIT",
   "devDependencies": {
+    "@rollup/plugin-json": "^4.1.0",
     "rimraf": "^3.0.2",
     "rollup": "^2.77.2"
   }
