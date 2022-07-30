@@ -25,6 +25,7 @@ export const LAUNCHPAD_REQUIRED_CSS = `
 `;
 
 export default {
-  LaunchpadProMK2,
-  LaunchpadMK2
+  launchpad_pro_mk2: LaunchpadProMK2,
+  launchpad_pro_mk2_cfw: LaunchpadProMK2,
+  launchpad_mk2: LaunchpadMK2
 };

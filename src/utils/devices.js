@@ -142,7 +142,6 @@ export const devicesConfiguration = {
 
       // Remove the last row since we don't have the bottom row.
       layout.pop();
-      console.log(layout);
 
       return layout;
     }

@@ -118,7 +118,7 @@ export default (([Plugin, BDFDB]) => {
                             border: "1px solid var(--background-secondary)",
                             borderRadius: "6px"
                           },
-                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2(BDFDB), {})
+                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents["launchpad_mk2"](BDFDB), {})
                         })
                       ]
                     })

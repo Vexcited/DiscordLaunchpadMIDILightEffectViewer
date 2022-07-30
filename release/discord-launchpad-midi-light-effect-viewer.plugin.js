@@ -8801,6 +8801,57 @@ var LaunchpadProMK2$1 = (BDFDB) => BDFDB.ReactUtils.forwardRef((props, ref) => B
   ...props 
 }));
 
+class LaunchpadMK2 extends BdApi.React.Component {
+  render () {
+    return (
+      BDFDB.ReactUtils.createElement("div", {
+        ref: this.props.innerRef,
+        style: { display: "flex", flexDirection: "column", gap: "3px" },
+        children: devicesConfiguration.launchpad_mk2.layout_to_use.map((row, row_index) => (
+          BDFDB.ReactUtils.createElement("div", {
+            key: row_index,
+            style: { display: "flex", flexDirection: "row", gap: "3px" },
+            children: row.map(noteId => {
+              const isControlButton = (
+                row_index === 0
+                || noteId.toString()[1] === "9"
+              );
+
+              return (noteId !== -1)
+                ? BDFDB.ReactUtils.createElement("div", {
+                  key: noteId,
+                  "data-note": noteId,
+                  className: isControlButton ? "__dle_launchpad_phantom_pad __dle_launchpad_phantom_pad_circle" : "",
+                  style: {
+                    width: "100%",
+                    height: "100%",
+                    aspectRatio: "1 / 1",
+                    borderRadius: isControlButton ? "50%" : "2px",
+                    backgroundColor: `rgb(${DEFAULT_RGB_UI_PAD.join(", ")})`
+                  }
+                })
+              
+                : BDFDB.ReactUtils.createElement("div", {
+                  key: noteId,
+                  style: {
+                    width: "100%",
+                    height: "100%",
+                  }
+                })
+              }
+            )
+          })
+        ))
+      })
+    )
+  }
+}
+
+var LaunchpadMK2$1 = (BDFDB) => BDFDB.ReactUtils.forwardRef((props, ref) => BDFDB.ReactUtils.createElement(LaunchpadMK2, {
+  innerRef: ref,
+  ...props 
+}));
+
 const LAUNCHPAD_REQUIRED_CSS = `
   .__dle_launchpad_phantom_pad:after {
     display: block;
@@ -8825,7 +8876,9 @@ const LAUNCHPAD_REQUIRED_CSS = `
 `;
 
 var LaunchpadComponents = {
-  LaunchpadProMK2: LaunchpadProMK2$1
+  launchpad_pro_mk2: LaunchpadProMK2$1,
+  launchpad_pro_mk2_cfw: LaunchpadProMK2$1,
+  launchpad_mk2: LaunchpadMK2$1
 };
 
 const PATCH_CODE = `
@@ -9030,7 +9083,7 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
                             border: "1px solid var(--background-secondary)",
                             borderRadius: "6px"
                           },
-                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2(BDFDB), {})
+                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents["launchpad_mk2"](BDFDB), {})
                         })
                       ]
                     })
