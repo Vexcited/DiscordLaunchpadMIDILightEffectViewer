@@ -2,26 +2,10 @@ import pkg from "../../package.json";
 
 const { resourcesPath } = window.require("process");
 const { ipcRenderer } = window.require("electron");
+const { resolve } = require("path");
 const fs = window.require("fs");
 
-const PATCH_CODE = `
-// _WEBMIDI_PATCH_START_
-const { app, session, ipcMain } = require("electron");    
-app.once("ready", () => {
-  ipcMain.on("_WEBMIDI_LOAD_", () => {
-    console.log("[WebMidiInjector] Loaded");
-    
-    session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
-      console.log("[WebMidiInjector] Permission Requested");
-      if (permission === "midi" || permission === "midiSysex") {
-        console.log("[WebMidiInjector] Permission Granted");
-        callback(true);
-      }
-    })
-  });
-});
-// _WEBMIDI_PATCH_END_
-`;
+const PATCH_CODE = fs.readFileSync(resolve(__dirname, "midiPatchCode.js"), "utf8");
 
 const getAppFileCode = () =>  fs.readFileSync(`${resourcesPath}/app/index.js`, { encoding: "utf8" });
 export const midiPermissionsInjected = () => {
