@@ -1,3 +1,4 @@
+export const PATCH_CODE = `
 // _WEBMIDI_PATCH_START_
 const { app, session, ipcMain } = require("electron");
 app.once("ready", () => {
@@ -6,9 +7,9 @@ app.once("ready", () => {
   
   const isAllowed = (requestingUrl, permission, sync) => {
     const requestingHostname = new URL(requestingUrl).hostname;
-    console.log(`[WebMidiInjector] (${(sync) ? "sync" : "async"}) ${permission}-Permission Requested by ${requestingHostname}`);
+    console.log(\`[WebMidiInjector] (\${(sync) ? "sync" : "async"}) \${permission}-Permission Requested by \${requestingHostname}\`);
     const allowed = allowedHostnames.includes(requestingHostname) && allowedPermissions.includes(permission);
-    console.log(`[WebMidiInjector] (${(sync) ? "sync" : "async"}) ${permission}-Permission`, (allowed) ? "Granted" : "Denied");
+    console.log(\`[WebMidiInjector] (\${(sync) ? "sync" : "async"}) \${permission}-Permission\`, (allowed) ? "Granted" : "Denied");
     return allowed;
   }
 
@@ -25,3 +26,4 @@ app.once("ready", () => {
   });
 });
 // _WEBMIDI_PATCH_END_
+`;

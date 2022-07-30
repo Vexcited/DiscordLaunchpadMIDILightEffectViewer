@@ -4,8 +4,9 @@ import launchpads, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
 import { devicesConfiguration } from "../utils/devices";
 
 import {
+  removeMidiPermissions,
   injectMidiPermissions,
-  midiPermissionsInjected,
+  checkMidiPermissionsInjector,
   loadWebMidi
 } from "../patchs/midi";
 
@@ -44,7 +45,6 @@ export default (([Plugin, BDFDB]) => {
     }
 
     _setupUploadFilePatch () {
-      console.log("setup");
       const addFilesModule = BdApi.findModuleByProps("addFiles");
       const cleanAddFilesPatch = BdApi.monkeyPatch(addFilesModule, "addFiles", {
         instead: ({ methodArguments, originalMethod, thisObject, callOriginalMethod }) => {
@@ -176,17 +176,20 @@ export default (([Plugin, BDFDB]) => {
       });
 
       this.cleanFunctions.push(cleanAddFilesPatch);
-
-      // const upload_module = BdApi.findModuleByProps("upload");
-      // BdApi.monkeyPatch(upload_module, "upload", {
-      //   instead: (e) => console.log("got upload", e)
-      // });
     }
 
     async onStart () {
-      if (midiPermissionsInjected()) {
+      const isMidiInjectedResponse = checkMidiPermissionsInjector(); 
+      if (isMidiInjectedResponse === "patched") {
         console.log("[WebMidiInjector] Already patched, skipping.");
-      } else injectMidiPermissions();
+      }
+      else if (isMidiInjectedResponse === "unpatched") {
+        injectMidiPermissions();
+      }
+      else if (isMidiInjectedResponse === "outdated") {
+        removeMidiPermissions();
+        injectMidiPermissions();
+      }
   
       // Inject required CSS for Launchpads.
       const INJECTED_CSS_ID = "DLE_LAUNCHPAD_INJECTED_CSS";

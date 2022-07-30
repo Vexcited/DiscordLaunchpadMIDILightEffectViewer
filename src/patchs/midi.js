@@ -1,32 +1,41 @@
+import { PATCH_CODE } from "./midiPatchCode";
 import pkg from "../../package.json";
 
 const { resourcesPath } = window.require("process");
 const { ipcRenderer } = window.require("electron");
-const { resolve } = require("path");
 const fs = window.require("fs");
 
-const PATCH_CODE = fs.readFileSync(resolve(__dirname, "midiPatchCode.js"), "utf8");
-
 const getAppFileCode = () =>  fs.readFileSync(`${resourcesPath}/app/index.js`, { encoding: "utf8" });
-export const midiPermissionsInjected = () => {
+
+export const checkMidiPermissionsInjector = () => {
+  /** @type {string} */
   const appFileCode = getAppFileCode();
-  return appFileCode.includes("_WEBMIDI_PATCH_START_") && appFileCode.includes("_WEBMIDI_PATCH_END_");
+  const hasPatched = appFileCode.includes("_WEBMIDI_PATCH_START_") && appFileCode.includes("_WEBMIDI_PATCH_END_");
+  if (!hasPatched) return "unpatched";
+
+  const codeInjected = appFileCode.substring(
+    appFileCode.indexOf("// _WEBMIDI_PATCH_START_"),
+    appFileCode.indexOf("_WEBMIDI_PATCH_END_") + "_WEBMIDI_PATCH_END_".length
+  );
+  if (codeInjected !== PATCH_CODE) return "outdated";
+
+  return "patched";
 }
 
 export const injectMidiPermissions = () => {
   console.log("[WebMidiInjector] Injecting MIDI permissions...");
   
   const appFileCode = getAppFileCode();
-  const appFileCodePatched = appFileCode + "\n\n" + PATCH_CODE;
+  const appFileCodePatched = appFileCode + "\n" + PATCH_CODE;
   
   // Write the patched file back to the app folder.
   fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodePatched);
-  // Gonna keep a backup in case.
-  fs.writeFileSync(`${resourcesPath}/app/index.js.bak`, appFileCodePatched);
+  // Gonna keep a backup.
+  fs.writeFileSync(`${resourcesPath}/app/index.js.bak`, appFileCode);
 
-  console.log("[WebMidiInjector] Injected MIDI permissions ! Please, restart BetterDiscord.");
+  console.log("[WebMidiInjector] Injected new MIDI permissions ! Please, restart BetterDiscord.");
   BdApi.showConfirmationModal(
-    "Injected MIDI permissions",
+    "Injected new MIDI permissions",
     `Please restart BetterDiscord to load them. Without them, the plugin "${pkg.className}" won't work.`, {
     confirmText: "Restart BD",
     onConfirm: () => {
@@ -37,6 +46,13 @@ export const injectMidiPermissions = () => {
     onCancel: () => undefined
   });
 };
+
+export const removeMidiPermissions = () => {
+  console.log("[WebMidiInjector] Removing MIDI permissions...");
+  fs.renameSync(`${resourcesPath}/app/index.js.bak`, `${resourcesPath}/app/index.js`);
+  console.log("[WebMidiInjector] Removed MIDI permissions.");
+}
+
 
 export const loadWebMidi = () => {
   ipcRenderer.send("_WEBMIDI_LOAD_");
