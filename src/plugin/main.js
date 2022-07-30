@@ -1,6 +1,6 @@
 import pkg from "../../package.json";
 import * as zip from "@zip.js/zip.js";
-import launchpads, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
+import LaunchpadComponents, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
 import { devicesConfiguration } from "../utils/devices";
 
 import {
@@ -20,8 +20,6 @@ const config = {
 };
 
 export default (([Plugin, BDFDB]) => {
-  const LaunchpadComponents = launchpads(BDFDB);
-
   return class DiscordLaunchpadMIDILightEffectViewer extends Plugin {
     /**
      * Functions to be called when
@@ -120,7 +118,7 @@ export default (([Plugin, BDFDB]) => {
                             border: "1px solid var(--background-secondary)",
                             borderRadius: "6px"
                           },
-                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2, {})
+                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2(BDFDB), {})
                         })
                       ]
                     })

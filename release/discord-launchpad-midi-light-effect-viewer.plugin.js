@@ -8747,60 +8747,59 @@ const devicesConfiguration = {
 /** This is the color used by the UI on pads. */
 const DEFAULT_RGB_UI_PAD = [148, 163, 184];
 
-var LaunchpadProMK2 = (BDFDB) => {
-  class LaunchpadProMK2 extends BdApi.React.Component {
-    render () {
-      return (
-        BDFDB.ReactUtils.createElement("div", {
-          ref: this.props.innerRef,
-          style: { display: "flex", flexDirection: "column", gap: "3px" },
-          children: devicesConfiguration.launchpad_pro_mk2.layout_to_use.map((row, row_index) => (
-            BDFDB.ReactUtils.createElement("div", {
-              key: row_index,
-              style: { display: "flex", flexDirection: "row", gap: "3px" },
-              children: row.map(noteId => {
-                const isControlButton = (
-                  row_index === 0
-                  || row_index === 9
-                  || noteId.toString()[1] === "0"
-                  || noteId.toString()[1] === "9"
-                );
+class LaunchpadProMK2 extends BdApi.React.Component {
+  render () {
+    return (
+      BDFDB.ReactUtils.createElement("div", {
+        ref: this.props.innerRef,
+        style: { display: "flex", flexDirection: "column", gap: "3px" },
+        children: devicesConfiguration.launchpad_pro_mk2.layout_to_use.map((row, row_index) => (
+          BDFDB.ReactUtils.createElement("div", {
+            key: row_index,
+            style: { display: "flex", flexDirection: "row", gap: "3px" },
+            children: row.map(noteId => {
+              const isControlButton = (
+                row_index === 0
+                || row_index === 9
+                || noteId.toString()[1] === "0"
+                || noteId.toString()[1] === "9"
+              );
 
-                return (noteId !== -1)
-                  ? BDFDB.ReactUtils.createElement("div", {
-                    key: noteId,
-                    "data-note": noteId,
-                    className: isControlButton ? "__dle_launchpad_phantom_pad __dle_launchpad_phantom_pad_circle" : "",
-                    style: {
-                      width: "100%",
-                      height: "100%",
-                      aspectRatio: "1 / 1",
-                      borderRadius: isControlButton ? "50%" : "2px",
-                      backgroundColor: `rgb(${DEFAULT_RGB_UI_PAD.join(", ")})`
-                    }
-                  })
-                
-                  : BDFDB.ReactUtils.createElement("div", {
-                    key: noteId,
-                    style: {
-                      width: "100%",
-                      height: "100%",
-                    }
-                  })
-                }
-              )
-            })
-          ))
-        })
-      )
-    }
+              return (noteId !== -1)
+                ? BDFDB.ReactUtils.createElement("div", {
+                  key: noteId,
+                  "data-note": noteId,
+                  className: isControlButton ? "__dle_launchpad_phantom_pad __dle_launchpad_phantom_pad_circle" : "",
+                  style: {
+                    width: "100%",
+                    height: "100%",
+                    aspectRatio: "1 / 1",
+                    borderRadius: isControlButton ? "50%" : "2px",
+                    backgroundColor: `rgb(${DEFAULT_RGB_UI_PAD.join(", ")})`
+                  }
+                })
+              
+                : BDFDB.ReactUtils.createElement("div", {
+                  key: noteId,
+                  style: {
+                    width: "100%",
+                    height: "100%",
+                  }
+                })
+              }
+            )
+          })
+        ))
+      })
+    )
   }
+}
 
-  return BDFDB.ReactUtils.forwardRef((props, ref) => BDFDB.ReactUtils.createElement(LaunchpadProMK2, {
-    innerRef: ref,
-    ...props
-  }));
-};
+
+var LaunchpadProMK2$1 = (BDFDB) => BDFDB.ReactUtils.forwardRef((props, ref) => BDFDB.ReactUtils.createElement(LaunchpadProMK2, {
+  innerRef: ref,
+  ...props 
+}));
 
 const LAUNCHPAD_REQUIRED_CSS = `
   .__dle_launchpad_phantom_pad:after {
@@ -8825,53 +8824,75 @@ const LAUNCHPAD_REQUIRED_CSS = `
   }
 `;
 
-var launchpads = (BDFDB) => ({
-  LaunchpadProMK2: LaunchpadProMK2(BDFDB)
-});
-
-const { resourcesPath } = window.require("process");
-const { ipcRenderer } = window.require("electron");
-const fs = window.require("fs");
+var LaunchpadComponents = {
+  LaunchpadProMK2: LaunchpadProMK2$1
+};
 
 const PATCH_CODE = `
 // _WEBMIDI_PATCH_START_
-const { app, session, ipcMain } = require("electron");    
+const { app, session, ipcMain } = require("electron");
 app.once("ready", () => {
+  const allowedHostnames = ["discord.com", "canary.discord.com", "ptb.discord.com"];
+  const allowedPermissions = ['notifications', 'fullscreen', 'pointerLock', 'midi', 'midiSysex', 'accessibility-events'];
+  
+  const isAllowed = (requestingUrl, permission, sync) => {
+    const requestingHostname = new URL(requestingUrl).hostname;
+    console.log(\`[WebMidiInjector] (\${(sync) ? "sync" : "async"}) \${permission}-Permission Requested by \${requestingHostname}\`);
+    const allowed = allowedHostnames.includes(requestingHostname) && allowedPermissions.includes(permission);
+    console.log(\`[WebMidiInjector] (\${(sync) ? "sync" : "async"}) \${permission}-Permission\`, (allowed) ? "Granted" : "Denied");
+    return allowed;
+  }
+
   ipcMain.on("_WEBMIDI_LOAD_", () => {
     console.log("[WebMidiInjector] Loaded");
-    
-    session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
-      console.log("[WebMidiInjector] Permission Requested");
-      if (permission === "midi" || permission === "midiSysex") {
-        console.log("[WebMidiInjector] Permission Granted");
-        callback(true);
-      }
-    })
+    // Async Handler
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+      callback(isAllowed(details.requestingUrl, permission, false));
+    }); 
+    // Sync Handler
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+      return isAllowed(requestingOrigin, permission, true);
+    });
   });
 });
 // _WEBMIDI_PATCH_END_
 `;
 
-const getAppFileCode = () =>  fs.readFileSync(`${resourcesPath}/app/index.js`, { encoding: "utf8" });
-const midiPermissionsInjected = () => {
+const { resourcesPath } = window.require("process");
+const { ipcRenderer } = window.require("electron");
+const fs = window.require("fs");
+
+/** @type {() => string} */
+const getAppFileCode = () => fs.readFileSync(`${resourcesPath}/app/index.js`, { encoding: "utf8" });
+
+const checkMidiPermissionsInjector = () => {
+  /** @type {string} */
   const appFileCode = getAppFileCode();
-  return appFileCode.includes("_WEBMIDI_PATCH_START_") && appFileCode.includes("_WEBMIDI_PATCH_END_");
+  const hasPatched = appFileCode.includes("_WEBMIDI_PATCH_START_") && appFileCode.includes("_WEBMIDI_PATCH_END_");
+  if (!hasPatched) return "unpatched";
+
+  const codeInjected = appFileCode.substring(
+    appFileCode.indexOf("// _WEBMIDI_PATCH_START_"),
+    appFileCode.indexOf("_WEBMIDI_PATCH_END_") + "_WEBMIDI_PATCH_END_".length
+  );
+
+  if (codeInjected.trim() !== PATCH_CODE.trim()) return "outdated";
+
+  return "patched";
 };
 
 const injectMidiPermissions = () => {
   console.log("[WebMidiInjector] Injecting MIDI permissions...");
   
   const appFileCode = getAppFileCode();
-  const appFileCodePatched = appFileCode + "\n\n" + PATCH_CODE;
+  const appFileCodePatched = appFileCode + PATCH_CODE;
   
   // Write the patched file back to the app folder.
   fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodePatched);
-  // Gonna keep a backup in case.
-  fs.writeFileSync(`${resourcesPath}/app/index.js.bak`, appFileCodePatched);
 
-  console.log("[WebMidiInjector] Injected MIDI permissions ! Please, restart BetterDiscord.");
+  console.log("[WebMidiInjector] Injected new MIDI permissions ! Please, restart BetterDiscord.");
   BdApi.showConfirmationModal(
-    "Injected MIDI permissions",
+    "Injected new MIDI permissions",
     `Please restart BetterDiscord to load them. Without them, the plugin "${pkg.className}" won't work.`, {
     confirmText: "Restart BD",
     onConfirm: () => {
@@ -8881,6 +8902,18 @@ const injectMidiPermissions = () => {
     cancelText: "Cancel",
     onCancel: () => undefined
   });
+};
+
+const removeMidiPermissions = () => {
+  console.log("[WebMidiInjector] Removing MIDI permissions...");
+  
+  const appFileCode = getAppFileCode();
+  const appFileCodeCleaned = appFileCode.substring(
+    0, appFileCode.indexOf("\n// _WEBMIDI_PATCH_START_")
+  );
+
+  fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodeCleaned);
+  console.log("[WebMidiInjector] Removed MIDI permissions.");
 };
 
 const loadWebMidi = () => {
@@ -8899,8 +8932,6 @@ const config = {
 };
 
 var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
-  const LaunchpadComponents = launchpads(BDFDB);
-
   return class DiscordLaunchpadMIDILightEffectViewer extends Plugin {
     /**
      * Functions to be called when
@@ -8924,7 +8955,6 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
     }
 
     _setupUploadFilePatch () {
-      console.log("setup");
       const addFilesModule = BdApi.findModuleByProps("addFiles");
       const cleanAddFilesPatch = BdApi.monkeyPatch(addFilesModule, "addFiles", {
         instead: ({ methodArguments, originalMethod, thisObject, callOriginalMethod }) => {
@@ -9000,7 +9030,7 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
                             border: "1px solid var(--background-secondary)",
                             borderRadius: "6px"
                           },
-                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2, {})
+                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents.LaunchpadProMK2(BDFDB), {})
                         })
                       ]
                     })
@@ -9056,17 +9086,20 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
       });
 
       this.cleanFunctions.push(cleanAddFilesPatch);
-
-      // const upload_module = BdApi.findModuleByProps("upload");
-      // BdApi.monkeyPatch(upload_module, "upload", {
-      //   instead: (e) => console.log("got upload", e)
-      // });
     }
 
     async onStart () {
-      if (midiPermissionsInjected()) {
+      const isMidiInjectedResponse = checkMidiPermissionsInjector(); 
+      if (isMidiInjectedResponse === "patched") {
         console.log("[WebMidiInjector] Already patched, skipping.");
-      } else injectMidiPermissions();
+      }
+      else if (isMidiInjectedResponse === "unpatched") {
+        injectMidiPermissions();
+      }
+      else if (isMidiInjectedResponse === "outdated") {
+        removeMidiPermissions();
+        injectMidiPermissions();
+      }
   
       // Inject required CSS for Launchpads.
       const INJECTED_CSS_ID = "DLE_LAUNCHPAD_INJECTED_CSS";

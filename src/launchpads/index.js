@@ -1,4 +1,5 @@
 import LaunchpadProMK2 from "./LaunchpadProMK2";
+import LaunchpadMK2 from "./LaunchpadMK2";
 
 export const LAUNCHPAD_REQUIRED_CSS = `
   .__dle_launchpad_phantom_pad:after {
@@ -23,6 +24,7 @@ export const LAUNCHPAD_REQUIRED_CSS = `
   }
 `;
 
-export default (BDFDB) => ({
-  LaunchpadProMK2: LaunchpadProMK2(BDFDB)
-});
+export default {
+  LaunchpadProMK2,
+  LaunchpadMK2
+};
