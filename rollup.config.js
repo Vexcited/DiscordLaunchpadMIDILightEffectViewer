@@ -1,5 +1,7 @@
 import pkg from "./package.json";
+
 import json from '@rollup/plugin-json';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 
 const BD_PLUGIN_BANNER = `\
 /**
@@ -21,7 +23,7 @@ const config = {
     exports: "default",
     format: "cjs"
   },
-  plugins: [json()]
+  plugins: [json(), nodeResolve()]
 };
 
 export default config;
