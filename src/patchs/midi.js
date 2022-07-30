@@ -43,7 +43,7 @@ export const injectMidiPermissions = () => {
   console.log("[WebMidiInjector] Injected MIDI permissions ! Please, restart BetterDiscord.");
   BdApi.showConfirmationModal(
     "Injected MIDI permissions",
-    `Please restart BetterDiscord to load them. Without it, the plugin "${pkg.className}" won't work.`, {
+    `Please restart BetterDiscord to load them. Without them, the plugin "${pkg.className}" won't work.`, {
     confirmText: "Restart BD",
     onConfirm: () => {
       DiscordNative.app.relaunch();
@@ -56,5 +56,6 @@ export const injectMidiPermissions = () => {
 
 export const loadWebMidi = () => {
   ipcRenderer.send("_WEBMIDI_LOAD_");
+  console.log("[WebMidiInjector] Loaded MIDI permissions injection.");
   return navigator.requestMIDIAccess({ sysex: true });
 };
