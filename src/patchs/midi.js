@@ -18,7 +18,8 @@ export const checkMidiPermissionsInjector = () => {
     appFileCode.indexOf("// _WEBMIDI_PATCH_START_"),
     appFileCode.indexOf("_WEBMIDI_PATCH_END_") + "_WEBMIDI_PATCH_END_".length
   );
-  if (codeInjected !== PATCH_CODE) return "outdated";
+
+  if (codeInjected.trim() !== PATCH_CODE.trim()) return "outdated";
 
   return "patched";
 }
@@ -57,7 +58,6 @@ export const removeMidiPermissions = () => {
   fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodeCleaned);
   console.log("[WebMidiInjector] Removed MIDI permissions.");
 }
-
 
 export const loadWebMidi = () => {
   ipcRenderer.send("_WEBMIDI_LOAD_");
