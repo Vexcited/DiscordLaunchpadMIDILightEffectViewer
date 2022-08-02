@@ -1,7 +1,9 @@
 import pkg from "../../package.json";
 import * as zip from "@zip.js/zip.js";
-import LaunchpadComponents, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
+import Launchpad, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
+
 import { devicesConfiguration } from "../utils/devices";
+import DlpeAttachment from "../patchs/DlpeAttachment";
 
 import {
   removeMidiPermissions,
@@ -55,13 +57,79 @@ export default (([Plugin, BDFDB]) => {
 
           if (midiFiles.length > 0) {
             const midiFile = midiFiles[0];
-
             const originalMidiFileName = midiFile.file.name.replace(".mid", "");
+            
             let midiFileName = originalMidiFileName;
+            let launchpadType = Object.keys(devicesConfiguration)[0];
+            
+            const launchpadRef = BDFDB.ReactUtils.createRef();
 
-            let midiLaunchpadType;
+            class UploadModalConfiguration extends BdApi.React.Component {
+              render () {
+                return BDFDB.ReactUtils.createElement(BDFDB.ReactUtils.Fragment, {
+                  children: [
+                    BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
+                      title: "Name of the Light Effect",
+                      className: BDFDB.DiscordClassModules.Margins.marginTop8,
+                      children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TextInput, {
+                        autoFocus: false,
+                        disabled: false,
+                        maxLength: 999,
+                        onChange: (val) => {
+                          midiFileName = val;
+                        },
+                        placeholder: originalMidiFileName,
+                        size: "default",
+                        type: "text",
+                        value: midiFileName
+                      })
+                    }),
+                    BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
+                      title: "Select the Launchpad type",
+                      className: BDFDB.DiscordClassModules.Margins.marginTop20,
+                      children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Select, {
+                        value: launchpadType,
+                        onChange: (val) => {
+                          launchpadType = val;
+                        },
+                        options: Object.keys(devicesConfiguration)
+                          .filter(device_key => device_key !== "launchpad_pro_mk2_cfw")
+                          .map(device_key => ({
+                            value: device_key,
+                            label: devicesConfiguration[device_key].name
+                          }))
+                      })
+                    })
+                  ]
+                });
+              }
+            }
 
-            let currentTab = "Configuration";
+            class UploadModalPreview extends BdApi.React.Component {
+              lp_type = () => launchpadType;
+
+              render () {
+                return BDFDB.ReactUtils.createElement(BDFDB.ReactUtils.Fragment, {
+                  children: [
+                    BDFDB.ReactUtils.createElement("div", {
+                      style: {
+                        height: "175px",
+                        width: "175px",
+                        margin: "0 auto",
+                        padding: "8px",
+                        background: "var(--background-tertiary)",
+                        border: "1px solid var(--background-secondary)",
+                        borderRadius: "6px"
+                      },
+                      children: BDFDB.ReactUtils.createElement(Launchpad, {
+                        type: this.lp_type(),
+                        ref: launchpadRef
+                      })
+                    })
+                  ]
+                })
+              }
+            }
 
             BdApi.showConfirmationModal("Detected a MIDI file !", "Do you want to share it as a light effect ?", {
               confirmText: "Yes !",
@@ -73,54 +141,15 @@ export default (([Plugin, BDFDB]) => {
                   children: [
                     BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.ModalComponents.ModalTabContent, {
                       tab: "Configuration",
-                      open: currentTab == "Configuration",
+                      open: true,
                       render: false,
-                      children: [
-                        BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
-                          title: "Name of the Light Effect",
-                          className: BDFDB.DiscordClassModules.Margins.marginTop8,
-                          children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TextInput, {
-                            autoFocus: false,
-                            disabled: false,
-                            maxLength: 999,
-                            onChange: (e) => (midiFileName = e),
-                            placeholder: midiFileName,
-                            size: "default",
-                            type: "text",
-                            value: midiFileName
-                          })
-                        }),
-                        BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
-                          title: "Select the Launchpad type",
-                          className: BDFDB.DiscordClassModules.Margins.marginTop20,
-                          children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Select, {
-                            onChange: (val) => (midiLaunchpadType = val),
-                            options: Object.keys(devicesConfiguration).filter(device_key => device_key !== "launchpad_pro_mk2_cfw").map(device_key => ({
-                              value: device_key,
-                              label: devicesConfiguration[device_key].name
-                            }))
-                          })
-                        })
-                      ]
+                      children: BDFDB.ReactUtils.createElement(UploadModalConfiguration)
                     }),
                     BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.ModalComponents.ModalTabContent, {
                       tab: "Preview",
-                      open: currentTab == "Preview",
                       render: false,
-                      children: [
-                        BDFDB.ReactUtils.createElement("div", {
-                          style: {
-                            height: "175px",
-                            width: "175px",
-                            margin: "0 auto",
-                            padding: "8px",
-                            background: "var(--background-tertiary)",
-                            border: "1px solid var(--background-secondary)",
-                            borderRadius: "6px"
-                          },
-                          children: BDFDB.ReactUtils.createElement(LaunchpadComponents["launchpad_mk2"](BDFDB), {})
-                        })
-                      ]
+                      open: false,
+                      children: BDFDB.ReactUtils.createElement(UploadModalPreview)
                     })
                   ],
                   buttons: [{
@@ -137,7 +166,7 @@ export default (([Plugin, BDFDB]) => {
                       await zipWriter.add("effect.mid", new zip.BlobReader(midiFile.file));
                       await zipWriter.add("infos.json", new zip.TextReader(JSON.stringify({
                         name: midiFileName,
-                        type: midiLaunchpadType
+                        type: launchpadType
                       })));
 
                       const blob = await zipWriter.close();
@@ -176,6 +205,34 @@ export default (([Plugin, BDFDB]) => {
       this.cleanFunctions.push(cleanAddFilesPatch);
     }
 
+    _setupAttachmentPatch () {
+      const AttachmentModule = BdApi.findModule(
+        (m) => m.default?.displayName === "Attachment"
+      );
+
+      const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
+        after: ({ returnValue }) => {
+          if (
+            returnValue.props?.children?.length === 0 ||
+            !returnValue.props.children[2]?.props?.href
+          ) return;
+
+          const fileUrl = returnValue.props.children[2]?.props?.href;
+          if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
+
+          const originalChildren = [...returnValue.props.children];
+          returnValue.props.children = [
+            BDFDB.ReactUtils.createElement(DlpeAttachment, {
+              url: fileUrl,
+              originalChildren
+            })
+          ];
+        }
+      });
+
+      this.cleanFunctions.push(cleanAttachmentPatch);
+    }
+
     async onStart () {
       const isMidiInjectedResponse = checkMidiPermissionsInjector(); 
       if (isMidiInjectedResponse === "patched") {
@@ -196,6 +253,7 @@ export default (([Plugin, BDFDB]) => {
 
       // Setup upload file patch.
       this._setupUploadFilePatch();
+      this._setupAttachmentPatch();
       
       // Load WebMIDI.
       this.midiAccess = await loadWebMidi();

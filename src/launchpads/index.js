@@ -24,8 +24,22 @@ export const LAUNCHPAD_REQUIRED_CSS = `
   }
 `;
 
-export default {
-  launchpad_pro_mk2: LaunchpadProMK2,
-  launchpad_pro_mk2_cfw: LaunchpadProMK2,
-  launchpad_mk2: LaunchpadMK2
-};
+class Launchpad extends BdApi.React.Component {
+  render () {
+    switch (this.props.type) {
+      case "launchpad_pro_mk2":
+      case "launchpad_pro_mk2_cfw":
+        return BDFDB.ReactUtils.createElement(LaunchpadProMK2, {
+          ref: this.props.innerRef
+        });
+      case "launchpad_mk2":
+        return BDFDB.ReactUtils.createElement(LaunchpadMK2, {
+          ref: this.props.innerRef
+        });
+      default:
+        return null;
+    }
+  }
+}
+
+export default Launchpad;

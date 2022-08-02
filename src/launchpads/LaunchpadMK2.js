@@ -47,7 +47,7 @@ class LaunchpadMK2 extends BdApi.React.Component {
   }
 }
 
-export default (BDFDB) => BDFDB.ReactUtils.forwardRef((props, ref) => BDFDB.ReactUtils.createElement(LaunchpadMK2, {
+export default BDFDB.ReactUtils.forwardRef((props, ref) => BDFDB.ReactUtils.createElement(LaunchpadMK2, {
   innerRef: ref,
   ...props 
 }));
