@@ -1241,7 +1241,7 @@ const midiFileParser = async (file) => {
   // Group the notes by time.
   notes_data.forEach(note => {
     const start_time = note.time * 1000;
-    const duration = (note.duration * 1000); // + delay;
+    const duration = (note.duration * 1000); //+ delay;
 
     const convert_results = convertNoteLayout(note.midi, "drum_rack", "programmer");
     if (!convert_results.success) return;
@@ -1286,6 +1286,8 @@ const midiFileParser = async (file) => {
 
     group_off.notes.push(parsed_noteoff);
   });
+
+  console.log(grouped_notes);
 
   return grouped_notes;
 };
@@ -1365,14 +1367,13 @@ class DlpeAttachment extends BdApi.React.Component {
 
       const device = deviceOutput();
       const device_configuration = device ? devicesConfiguration[device.type] : null;
-      console.log(device, device_configuration);
 
       const playTimeStart = performance.now();
       for (const group of midi) {
         const groupStartTime = group.start_time;
         if (groupStartTime < performance.now() - playTimeStart) continue;
 
-        if (device) {
+        if (device.output) {
           const leds = group.notes.map(note => ({
             note: note.index,
             color: note.color
@@ -1468,7 +1469,6 @@ app.once("ready", () => {
 `;
 
 const { resourcesPath } = window.require("process");
-window.require("electron");
 const fs = window.require("fs");
 
 /** @type {() => string} */
@@ -1524,6 +1524,8 @@ const removeMidiPermissions = () => {
   fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodeCleaned);
   console.log("[WebMidiInjector] Removed MIDI permissions.");
 };
+
+const { ipcRenderer } = window.require("electron");
 
 const config = {
   "info": {
@@ -1782,6 +1784,7 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
       this._setupAttachmentPatch();
       
       // Load WebMIDI.
+      ipcRenderer.send("_WEBMIDI_LOAD_");
       await d.enable({ sysex: true });
     }
 

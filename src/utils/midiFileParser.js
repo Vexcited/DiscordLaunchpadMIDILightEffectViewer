@@ -25,7 +25,7 @@ const midiFileParser = async (file) => {
   // Group the notes by time.
   notes_data.forEach(note => {
     const start_time = note.time * 1000;
-    const duration = (note.duration * 1000); // + delay;
+    const duration = (note.duration * 1000) //+ delay;
 
     const convert_results = convertNoteLayout(note.midi, "drum_rack", "programmer");
     if (!convert_results.success) return;
@@ -70,6 +70,8 @@ const midiFileParser = async (file) => {
 
     group_off.notes.push(parsed_noteoff);
   });
+
+  console.log(grouped_notes);
 
   return grouped_notes;
 }

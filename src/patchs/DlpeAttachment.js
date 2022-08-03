@@ -81,14 +81,13 @@ class DlpeAttachment extends BdApi.React.Component {
 
       const device = deviceOutput();
       const device_configuration = device ? devicesConfiguration[device.type] : null;
-      console.log(device, device_configuration);
 
       const playTimeStart = performance.now();
       for (const group of midi) {
         const groupStartTime = group.start_time;
         if (groupStartTime < performance.now() - playTimeStart) continue;
 
-        if (device) {
+        if (device.output) {
           const leds = group.notes.map(note => ({
             note: note.index,
             color: note.color
