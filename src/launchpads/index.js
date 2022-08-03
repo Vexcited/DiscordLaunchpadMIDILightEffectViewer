@@ -1,5 +1,7 @@
 import LaunchpadProMK2 from "./LaunchpadProMK2";
 import LaunchpadMK2 from "./LaunchpadMK2";
+import LaunchpadProMK3 from "./LaunchpadProMK3";
+import LaunchpadXandMiniMK3 from "./LaunchpadXandMiniMK3";
 
 export const LAUNCHPAD_REQUIRED_CSS = `
   .__dle_launchpad_phantom_pad:after {
@@ -34,6 +36,15 @@ class Launchpad extends BdApi.React.Component {
         });
       case "launchpad_mk2":
         return BDFDB.ReactUtils.createElement(LaunchpadMK2, {
+          ref: this.props.innerRef
+        });
+      case "launchpad_x":
+      case "launchpad_mini_mk3":
+        return BDFDB.ReactUtils.createElement(LaunchpadXandMiniMK3, {
+          ref: this.props.innerRef
+        });
+      case "launchpad_pro_mk3":
+        return BDFDB.ReactUtils.createElement(LaunchpadProMK3, {
           ref: this.props.innerRef
         });
       default:
