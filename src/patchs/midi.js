@@ -2,7 +2,6 @@ import { PATCH_CODE } from "./midiPatchCode";
 import pkg from "../../package.json";
 
 const { resourcesPath } = window.require("process");
-const { ipcRenderer } = window.require("electron");
 const fs = window.require("fs");
 
 /** @type {() => string} */

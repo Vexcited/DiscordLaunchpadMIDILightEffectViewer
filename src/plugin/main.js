@@ -12,6 +12,8 @@ import {
   checkMidiPermissionsInjector
 } from "../patchs/midi";
 
+const { ipcRenderer } = window.require("electron");
+
 const config = {
   "info": {
     "name": pkg.className,
@@ -269,6 +271,7 @@ export default (([Plugin, BDFDB]) => {
       this._setupAttachmentPatch();
       
       // Load WebMIDI.
+      ipcRenderer.send("_WEBMIDI_LOAD_");
       await WebMidi.enable({ sysex: true });
     }
 
