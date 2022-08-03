@@ -23,3 +23,10 @@ Now, check in your settings that the plugin is enabled.
 All the plugin's code is located in the `src` directory. To bundle this all into one JS file, I use `rollup`.
 
 Make sure the dependencies are installed with `pnpm install` (yes use `pnpm`) and start the build script with `pnpm build`. This will create the new build in `release/discord-launchpad-midi-light-effect-viewer.plugin.js` that you can move to your BetterDiscord plugins directory.
+
+### Injected JS libraries (with `unpkg.com`)
+
+These dependencies will be globally injected into Discord.
+
+- `jszip`, available globally as `JSZip`.
+- `@tonejs/midi`, available globally as `Midi`.

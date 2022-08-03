@@ -7,7 +7,7 @@ export const DEFAULT_RGB_UI_PAD = [148, 163, 184];
  * 
  * Taken from <https://github.com/Vexcited/lpadder/blob/main/src/utils/palettes.ts>.
  */
- export const novationLaunchpadPalette = [
+export const novationLaunchpadPalette = [
   [0, 0, 0],
   [28, 28, 28],
   [124, 124, 124],

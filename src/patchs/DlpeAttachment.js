@@ -1,8 +1,12 @@
+import { WebMidi } from "webmidi";
 import pkg from "../../package.json";
 
 const https = window.require("https");
-import * as zip from "@zip.js/zip.js";
 import Launchpad from "../launchpads";
+
+import midiFileParser from "../utils/midiFileParser";
+import { devicesConfiguration } from "../utils/devices";
+import { DEFAULT_RGB_UI_PAD, novationLaunchpadPalette } from "../utils/palettes";
 
 class DlpeAttachment extends BdApi.React.Component {
   constructor(props) {
@@ -37,12 +41,10 @@ class DlpeAttachment extends BdApi.React.Component {
           const binary = Buffer.concat(chunks);
           const uint8Array = new Uint8Array(binary);
 
-          const reader = new zip.Uint8ArrayReader(uint8Array);
-          const zipFile = new zip.ZipReader(reader);
-          const entries = await zipFile.getEntries();
+          const zip = await JSZip.loadAsync(uint8Array);
           
-          const infos_file = entries.find(entry => entry.filename === "infos.json");
-          const midi_file = entries.find(entry => entry.filename === "effect.mid");
+          const infos_file = await zip.file("infos.json")?.async("string");
+          const midi_file = await zip.file("effect.mid")?.async("arraybuffer");
 
           if (!infos_file || !midi_file) {
             console.error(`[${pkg.className}] Invalid DLPE file: missing infos.json or effect.mid. Aborting.`);
@@ -50,16 +52,68 @@ class DlpeAttachment extends BdApi.React.Component {
             return;
           }
 
-          const infos = JSON.parse(await infos_file.getData(new zip.TextWriter()));
-          const midi = await midi_file.getData(new zip.Uint8ArrayWriter());
+          const infos_parsed = JSON.parse(infos_file);
+          const midi_parsed = await midiFileParser(midi_file);
 
-          this.setState({ loaded: true, midi, infos });
+          this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
       });
-  });
+    });
   }
 
   render () {
     if (this.state.hasError) return this.props.originalChildren;
+    const deviceOutput = () => {
+      const loaded_id = BDFDB.DataUtils.load(pkg.className, "output");
+      const loaded_type = BDFDB.DataUtils.load(pkg.className, "type");
+
+      if (typeof loaded_id === "string" && typeof loaded_type === "string") return {
+        output: WebMidi.outputs.find(output => output.id === loaded_id),
+        type: loaded_type
+      }
+
+      return null;
+    }
+
+    const playMidiFile = async () => {
+      const launchpad = this.launchpad_ref?.current;
+      const midi = this.state.midi;
+      if (!launchpad || !midi) return;
+
+      const device = deviceOutput();
+      const device_configuration = device ? devicesConfiguration[device.type] : null;
+      console.log(device, device_configuration);
+
+      const playTimeStart = performance.now();
+      for (const group of midi) {
+        const groupStartTime = group.start_time;
+        if (groupStartTime < performance.now() - playTimeStart) continue;
+
+        if (device) {
+          const leds = group.notes.map(note => ({
+            note: note.index,
+            color: note.color
+          }));
+
+          const sysex = device_configuration.rgb_sysex(leds);
+          device.output.sendSysex([], sysex);
+        }
+    
+        let toWait = groupStartTime - (performance.now() - playTimeStart);
+        await new Promise(r => setTimeout(r, toWait));
+
+        group.notes.forEach(note => {
+          // Get the pad element from the Launchpad.
+          const pad = launchpad.querySelector(`[data-note="${note.index}"]`);
+          if (!pad) return;
+          
+          const color = note.color;
+          const colored_pad_style = `rgb(${color.join(", ")})`;
+
+          // Set the color of the pad for the `noteon`.
+          pad.style.backgroundColor = colored_pad_style;
+        });
+      }
+    }
 
     return this.state.loaded
     ? BDFDB.ReactUtils.createElement("div", {
@@ -84,13 +138,11 @@ class DlpeAttachment extends BdApi.React.Component {
           },
           children: BDFDB.ReactUtils.createElement(Launchpad, {
             type: this.state.infos.type,
-            ref: this.launchpad_ref
+            innerRef: this.launchpad_ref
           })
         }),
         BDFDB.ReactUtils.createElement("button", {
-          onClick: () => {
-            console.log(this.launchpad_ref, this.state);
-          },
+          onClick: playMidiFile,
           children: "Play"
         })
       ]

@@ -1,7 +1,9 @@
 import pkg from "./package.json";
 
 import json from '@rollup/plugin-json';
+import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
+
 
 const BD_PLUGIN_BANNER = `\
 /**
@@ -17,13 +19,13 @@ const BD_PLUGIN_BANNER = `\
 const config = {
   input: "src/index.js",
   output: {
-    file: "release/discord-launchpad-midi-light-effect-viewer.plugin.js",
+    file: `release/${pkg.className}.plugin.js`,
     banner: BD_PLUGIN_BANNER,
 
     exports: "default",
     format: "cjs"
   },
-  plugins: [json(), nodeResolve()]
+  plugins: [json(), commonjs(), nodeResolve()]
 };
 
 export default config;

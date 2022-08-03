@@ -58,9 +58,3 @@ export const removeMidiPermissions = () => {
   fs.writeFileSync(`${resourcesPath}/app/index.js`, appFileCodeCleaned);
   console.log("[WebMidiInjector] Removed MIDI permissions.");
 }
-
-export const loadWebMidi = () => {
-  ipcRenderer.send("_WEBMIDI_LOAD_");
-  console.log("[WebMidiInjector] Loaded MIDI permissions injection.");
-  return navigator.requestMIDIAccess({ sysex: true });
-};

@@ -1,15 +1,15 @@
 import pkg from "../../package.json";
-import * as zip from "@zip.js/zip.js";
 import Launchpad, { LAUNCHPAD_REQUIRED_CSS } from "../launchpads";
 
 import { devicesConfiguration } from "../utils/devices";
 import DlpeAttachment from "../patchs/DlpeAttachment";
 
+import { WebMidi } from "webmidi";
+
 import {
   removeMidiPermissions,
   injectMidiPermissions,
-  checkMidiPermissionsInjector,
-  loadWebMidi
+  checkMidiPermissionsInjector
 } from "../patchs/midi";
 
 const config = {
@@ -158,18 +158,14 @@ export default (([Plugin, BDFDB]) => {
                     onClick: async () => {
                       BDFDB.LibraryModules.ModalUtils.closeAllModals();
 
-                      const zipWriter = new zip.ZipWriter(
-                        new zip.BlobWriter("application/zip"),
-                        { bufferedWrite: true }
-                      );
-
-                      await zipWriter.add("effect.mid", new zip.BlobReader(midiFile.file));
-                      await zipWriter.add("infos.json", new zip.TextReader(JSON.stringify({
+                      const zip = new JSZip();
+                      zip.file("effect.mid", midiFile.file);
+                      zip.file("infos.json", JSON.stringify({
                         name: midiFileName,
                         type: launchpadType
-                      })));
+                      }, null, 2));
 
-                      const blob = await zipWriter.close();
+                      const blob = await zip.generateAsync({ type: "uint8array" });
                       const zip_file = new File([blob], midiFileName + ".dlpe.zip", { type: "application/zip" });
                       
                       const file = {
@@ -251,18 +247,76 @@ export default (([Plugin, BDFDB]) => {
       BdApi.injectCSS(INJECTED_CSS_ID, LAUNCHPAD_REQUIRED_CSS);
       this.cleanFunctions.push(() => BdApi.clearCSS(INJECTED_CSS_ID));
 
+      // Quick fix to inject JS libraries and defined them globally instead of AMD.
+      const old_define = window.define;
+      window.define = undefined;
+      
+      // Inject MIDI JS library.
+      const INJECTED_JS_MIDI_ID = "DLE_LAUNCHPAD_INJECTED_MIDI_JS";
+      await BdApi.linkJS(INJECTED_JS_MIDI_ID, "https://unpkg.com/@tonejs/midi");
+      this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_MIDI_ID));
+      
+      // Inject ZIP JS library.
+      const INJECTED_JS_ZIP_ID = "DLE_LAUNCHPAD_INJECTED_ZIP_JS";
+      await BdApi.linkJS(INJECTED_JS_ZIP_ID, "https://unpkg.com/jszip@latest/dist/jszip.min.js");
+      this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_ZIP_ID));
+
+      // Re-define the define function.
+      window.define = old_define;
+
       // Setup upload file patch.
       this._setupUploadFilePatch();
       this._setupAttachmentPatch();
       
       // Load WebMIDI.
-      this.midiAccess = await loadWebMidi();
-      console.log(this.outputs());
+      await WebMidi.enable({ sysex: true });
     }
 
     onStop () {
       // Clean up all the patches.
       this.cleanFunctions.forEach(f => f());
+    }
+
+    getSettingsPanel () {
+      return BDFDB.PluginUtils.createSettingsPanel(this, {
+        children: () => {
+          let settingsItems = [];
+
+          settingsItems.push(
+            BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
+              title: "Select your device output",
+              children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Select, {
+                onChange: (val) => {
+                  BDFDB.DataUtils.save(val, config.info.name, "output");
+                },
+                options: WebMidi.outputs.map(output => ({
+                  value: output.id,
+                  label: output.name
+                }))
+              })
+            })
+          );
+
+          settingsItems.push(
+            BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.FormComponents.FormItem, {
+              title: "Select your device type",
+              className: BDFDB.DiscordClassModules.Margins.marginTop20,
+              children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Select, {
+                onChange: (val) => {
+                  BDFDB.DataUtils.save(val, config.info.name, "type");
+                },
+                options: Object.keys(devicesConfiguration)
+                  .map(device_key => ({
+                    value: device_key,
+                    label: devicesConfiguration[device_key].name
+                  }))
+              })
+            })
+          );
+
+          return settingsItems;
+        }
+      });
     }
   }
 })(window.BDFDB_Global.PluginUtils.buildPlugin(config));
