@@ -39,13 +39,13 @@ jobs:
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
           ./gradlew make generateUpdaterJson
-          cp **/build/*.zip $GITHUB_WORKSPACE/builds
-          cp build/updater.json $GITHUB_WORKSPACE/builds
+          cp **/build/*.zip builds
+          cp build/updater.json builds
       - name: Push builds
         run: |
-          cd $GITHUB_WORKSPACE/builds
+          cd $GITHUB_WORKSPACE/src/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add .
-          git commit -m "Build $GITHUB_SHA" || exit 0   # do not error if nothing to commit
+          git commit -m "Build $GITHUB_SHA" || exit 0 # Do not error if nothing to commit.
           git push
