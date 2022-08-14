@@ -9,16 +9,24 @@ on:
     branches:
       - aliucord
     paths-ignore:
+      - '.gitignore'
+      - 'LICENSE'
       - '*.md'
 
 jobs:
   build:
     runs-on: ubuntu-20.04
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@master
         with:
           path: "src"
+
+      - name: Checkout builds
+        uses: actions/checkout@master
+        with:
+          ref: "builds"
+          path: "builds"
 
       - name: Checkout Aliucord
         uses: actions/checkout@master
@@ -39,13 +47,13 @@ jobs:
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
           ./gradlew make generateUpdaterJson
-          cp **/build/*.zip builds
-          cp build/updater.json builds
+          cp **/build/*.zip $GITHUB_WORKSPACE/builds/aliucord
+          cp build/updater.json $GITHUB_WORKSPACE/builds/aliucord
       - name: Push builds
         run: |
           cd $GITHUB_WORKSPACE/src/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add .
-          git commit -m "Build $GITHUB_SHA" || exit 0 # Do not error if nothing to commit.
+          git commit -m "chore(aliucord): build $GITHUB_SHA" || exit 0 # Do not error if nothing to commit.
           git push
