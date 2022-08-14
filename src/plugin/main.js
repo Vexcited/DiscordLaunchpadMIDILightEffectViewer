@@ -212,14 +212,15 @@ export default (([Plugin, BDFDB]) => {
         after: ({ returnValue }) => {
           if (
             returnValue.props?.children?.length === 0 ||
-            !returnValue.props.children[2]?.props?.href
+            !returnValue.props.children[0]?.props?.children.length === 0 ||
+            !returnValue.props.children[0]?.props?.children[2]?.props.href
           ) return;
 
-          const fileUrl = returnValue.props.children[2]?.props?.href;
+          const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
           if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
 
           const originalChildren = [...returnValue.props.children];
-          returnValue.props.children = [
+          returnValue.props.children[0].props.children = [
             BDFDB.ReactUtils.createElement(DlpeAttachment, {
               url: fileUrl,
               originalChildren

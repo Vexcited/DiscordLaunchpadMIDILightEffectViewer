@@ -1821,18 +1821,24 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
         (m) => m.default?.displayName === "Attachment"
       );
 
+      console.log("attach", AttachmentModule);
+
       const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
         after: ({ returnValue }) => {
+          console.log(returnValue);
           if (
             returnValue.props?.children?.length === 0 ||
-            !returnValue.props.children[2]?.props?.href
+            !returnValue.props.children[0]?.props?.children.length === 0 ||
+            !returnValue.props.children[0]?.props?.children[2]?.props.href
           ) return;
 
-          const fileUrl = returnValue.props.children[2]?.props?.href;
+          const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
+          console.log(fileUrl);
           if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
 
+
           const originalChildren = [...returnValue.props.children];
-          returnValue.props.children = [
+          returnValue.props.children[0].props.children = [
             BDFDB.ReactUtils.createElement(DlpeAttachment, {
               url: fileUrl,
               originalChildren
