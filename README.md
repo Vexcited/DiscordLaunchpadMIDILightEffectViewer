@@ -11,6 +11,9 @@ You'll find the installation instruction in each of the branches' `README.md`.
 - Powercord: in the [`powercord` branch](https://github.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/tree/powercord).
   - **Status** - In early development.
 
+- Aliucord: in the [`aliucord` branch](https://github.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/tree/aliucord).
+  - **Status** - In early development.
+
 ## Usage
 
 The usage is the same for all clients. Drag or upload a `.mid` file into a text chat and a modal will appear.
