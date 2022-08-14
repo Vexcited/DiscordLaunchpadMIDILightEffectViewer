@@ -1,0 +1,6 @@
+# Miscs
+.DS_Store
+
+# Build
+/build
+**/build
