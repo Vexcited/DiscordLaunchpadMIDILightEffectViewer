@@ -38,8 +38,8 @@ subprojects {
 
     aliucord {
       author("Vexcited", 466655433415720992L)
-      updateUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/aliucord/builds/updater.json")
-      buildUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/aliucord/builds/%s.zip")
+      updateUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/builds/aliucord/updater.json")
+      buildUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/builds/aliucord/%s.zip")
     }
 
     android {

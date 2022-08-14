@@ -1,5 +1,5 @@
 version = "0.1.0"
-description = "My first commands!"
+description = "An Aliucord plugin that allows preview of Launchpad light effects inside Discord."
 
 aliucord {
     // Changelog of your plugin
@@ -10,5 +10,5 @@ aliucord {
     // changelogMedia.set("https://raw.githubusercontent.com/TODO.gifORpng")
 
     // Excludes this plugin from the updater, meaning it won't show up for users.
-    excludeFromUpdaterJson.set(true)
+    excludeFromUpdaterJson.set(false)
 }
