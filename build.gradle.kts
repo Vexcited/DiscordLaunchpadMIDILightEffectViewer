@@ -5,17 +5,16 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        // Aliucords Maven repo which contains our tools and dependencies
+        // Aliucords Maven repo which contains the tools and dependencies.
         maven("https://maven.aliucord.com/snapshots")
-        // Shitpack which still contains some Aliucord dependencies for now. TODO: Remove
+        // Pack which still contains some Aliucord dependencies for now.
         maven("https://jitpack.io")
     }
 
     dependencies {
         classpath("com.android.tools.build:gradle:7.0.4")
-        // Aliucord gradle plugin which makes everything work and builds plugins
+        // Aliucord gradle plugin which makes everything work and builds plugins.
         classpath("com.aliucord:gradle:main-SNAPSHOT")
-        // Kotlin support. Remove if you want to use Java
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.5.21")
     }
 }
@@ -35,14 +34,12 @@ fun Project.android(configuration: BaseExtension.() -> Unit) = extensions.getByN
 subprojects {
     apply(plugin = "com.android.library")
     apply(plugin = "com.aliucord.gradle")
-    // Remove if using Java
     apply(plugin = "kotlin-android")
 
-    // Fill out with your info
     aliucord {
-        author("Vexcited", 466655433415720992L)
-        updateUrl.set("https://raw.githubusercontent.com/Vexcited/REPONAME/builds/updater.json")
-        buildUrl.set("https://raw.githubusercontent.com/Vexcited/REPONAME/builds/%s.zip")
+      author("Vexcited", 466655433415720992L)
+      updateUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/aliucord/builds/updater.json")
+      buildUrl.set("https://raw.githubusercontent.com/Vexcited/DiscordLaunchpadMIDILightEffectViewer/aliucord/builds/%s.zip")
     }
 
     android {
@@ -60,8 +57,8 @@ subprojects {
 
         tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
             kotlinOptions {
-                jvmTarget = "11" // Required
-                // Disables some unnecessary features
+                jvmTarget = "11" // Required.
+                // Disables some unnecessary features.
                 freeCompilerArgs = freeCompilerArgs +
                         "-Xno-call-assertions" +
                         "-Xno-param-assertions" +
