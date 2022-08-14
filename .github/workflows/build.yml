@@ -51,7 +51,7 @@ jobs:
           cp build/updater.json $GITHUB_WORKSPACE/builds/aliucord
       - name: Push builds
         run: |
-          cd $GITHUB_WORKSPACE/src/builds
+          cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add .
