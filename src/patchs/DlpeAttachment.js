@@ -8,7 +8,7 @@ import midiFileParser from "../utils/midiFileParser";
 import { devicesConfiguration } from "../utils/devices";
 import { DEFAULT_RGB_UI_PAD } from "../utils/palettes";
 
-import { unbundleBuffer } from "../utils/bundle";
+import { unbundleBuffer } from "../utils/bundler";
 
 class DlpeAttachment extends BdApi.React.Component {
   constructor(props) {
@@ -44,17 +44,16 @@ class DlpeAttachment extends BdApi.React.Component {
           const binary = Buffer.concat(chunks);        
           const data = unbundleBuffer(binary);
 
-          const infos_file = data.find(file => file.name === "infos.json");
-          const midi_file = data.find(file => file.name === "effect.mid");
-  
+          const { "infos.json": infos_file, "effect.mid": midi_file } = data;
+
           if (!infos_file || !midi_file) {
             console.error(`[${pkg.className}] Invalid DLPE file: missing infos.json or effect.mid. Aborting.`);
             this.setState({ hasError: true });
             return;
           }
   
-          const infos_parsed = JSON.parse(infos_file.content.toString());
-          const midi_parsed = await midiFileParser(midi_file.content);
+          const infos_parsed = JSON.parse(infos_file.toString());
+          const midi_parsed = await midiFileParser(midi_file);
   
           this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
         }
