@@ -970,21 +970,21 @@ const midiFileParser = (file) => {
     // } else group_off.notes.push(parsed_noteoff);
   });
 
-  return { notes: grouped_notes, length: grouped_notes.map(o => Math.max(...Object.values(o.notes).map(a => a.duration + o.start_time))) };
+  return { notes: grouped_notes, length: Math.max(...grouped_notes.map(o => Math.max(...Object.values(o.notes).map(a => a.duration + o.start_time)))) };
 };
 
 const BUF_SIGNATURE = new Buffer.from("DLPE", "ascii");
 
 /**
- * @typedef {Buffer} input_buffer
+ * @typedef {Buffer} inputBuffer
  */
 /**
  * Unbundles a Buffer-Bundle
  * ```
- * const myBuffers = unbundleBuffer(myBuffer);
- * console.log(myBuffers[0].content);
+ * const buffers = unbundleBuffer(bufferBundle)
+ * console.log(buffers["name1"])
  * ```
- * @param {input_buffer} buf
+ * @param {inputBuffer} buf
  */
 const unbundleBuffer = (buf) => {
   if (!BUF_SIGNATURE.equals(buf.subarray(0, BUF_SIGNATURE.length))) {
@@ -1004,83 +1004,80 @@ const unbundleBuffer = (buf) => {
 };
 
 /**
- * @typedef {Array} input_array
+ * @typedef {Object} inputObject
  */
 /**
  * Bundles into a Buffer-Bundle
- * @param {...input_array} input_buffers
- * 
- * @example
- * ```javascript
- * const file1 = { content: Buffer.from("hello"), name: "file1" }
- * const file2 = { content: Buffer.from(fs.readFileSync("file", "binary")), name: "file2" }
- * const buf_bundled: Buffer = bundleBuffers([file1, file2])
  * ```
+ * const file1 = { content: Buffer.from("hello"), name: "file1" }
+ * const file2 = { content: Buffer.from(fs.readFileSync("./file")), name: "file2" }
+ * const input = { name1: file1, name2: file2 }
+ * const bufBundled = bundleBuffers(input)
+ * ```
+ * @param {inputObject} input
  */
-const bundleBuffers = (input_buffers) => {
+const bundleBuffers = (input) => {
   const BUF_VERSION = Buffer.allocUnsafe(1);
   BUF_VERSION.writeUInt8(0);
 
-  const output_buffers = [];
+  const buffers = [];
+  const inputEntries = Object.entries(input);
 
-  for (const { name: file_name, content: buf_content } of input_buffers) {
-    const buf_file_name = Buffer.from(file_name, "ascii");
+  for (const [name, bufContent] of inputEntries) {
+    const bufName = Buffer.from(name, "ascii");
 
-    const buf_file_name_length = Buffer.alloc(1);
-    buf_file_name_length.writeUInt8(buf_file_name.length, 0);
+    const bufNameLength = Buffer.alloc(1);
+    bufNameLength.writeUInt8(bufName.length, 0);
 
-    const buf_content_length = Buffer.alloc(4);
-    buf_content_length.writeUInt32LE(buf_content.length, 0);
+    const bufContentLength = Buffer.alloc(4);
+    bufContentLength.writeUInt32LE(bufContent.length, 0);
 
-    const buf_file_result = Buffer.concat([
-      buf_file_name_length,
-      buf_file_name,
-      buf_content_length,
-      buf_content,
-    ]);
-    output_buffers.push(buf_file_result);
+    buffers.push(Buffer.concat([
+      bufNameLength,
+      bufName,
+      bufContentLength,
+      bufContent,
+    ]));
   }
 
-  let files_count = Buffer.alloc(1);
-  files_count.writeUInt8(input_buffers.length);
+  const filesCount = Buffer.alloc(1);
+  filesCount.writeUInt8(inputEntries.length);
 
   return Buffer.concat([
     BUF_SIGNATURE,
     BUF_VERSION,
-    files_count,
-    ...output_buffers,
+    filesCount,
+    ...buffers,
   ]);
 };
 
 const unbundleV1 = (buf) => {
-  let offset = 1 + BUF_SIGNATURE.length;
+  let offset = BUF_SIGNATURE.length + 1;
 
-  let files_count = buf.readUInt8(offset);
+  let bufferCount = buf.readUInt8(offset);
   offset += 1;
 
-  let files = [];
-  while (files_count--) {
-    const file_name_length = buf.readUInt8(offset);
+  const buffers = {};
+  while (bufferCount--) {
+    const nameLength = buf.readUInt8(offset);
     offset += 1;
-    const file_name = buf.toString("ascii", offset, offset + file_name_length);
-    offset += file_name_length;
 
-    const content_length = buf.readUInt32LE(offset);
+    const name = buf.toString("ascii", offset, offset + nameLength);
+    offset += nameLength;
+
+    const contentLength = buf.readUInt32LE(offset);
     offset += 4;
 
-    const content = buf.subarray(offset, offset + content_length);
-    offset += content_length;
+    const content = buf.subarray(offset, offset + contentLength);
+    offset += contentLength;
 
-    files.push({
-      name: file_name,
-      content,
-    });
+    buffers[name] = content;
   }
 
-  return files;
+  return buffers;
 };
 
-var bundle = {
+var bundler = {
   bundleBuffers,
   unbundleBuffer,
 };
@@ -1594,19 +1591,18 @@ class DlpeAttachment extends BdApi.React.Component {
       res.on("end", () => {
         try {
           const binary = Buffer.concat(chunks);        
-          const data = bundle.unbundleBuffer(binary);
+          const data = bundler.unbundleBuffer(binary);
 
-          const infos_file = data.find(file => file.name === "infos.json");
-          const midi_file = data.find(file => file.name === "effect.mid");
-  
+          const { "infos.json": infos_file, "effect.mid": midi_file } = data;
+
           if (!infos_file || !midi_file) {
             console.error(`[${pkg.className}] Invalid DLPE file: missing infos.json or effect.mid. Aborting.`);
             this.setState({ hasError: true });
             return;
           }
   
-          const infos_parsed = JSON.parse(infos_file.content.toString());
-          const midi_parsed = midiFileParser(midi_file.content);
+          const infos_parsed = JSON.parse(infos_file.toString());
+          const midi_parsed = midiFileParser(midi_file);
   
           this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
         }
@@ -1894,23 +1890,14 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
                     onClick: async () => {
                       BDFDB.LibraryModules.ModalUtils.closeAllModals();
 
-                      const effect_file = {
-                        content: Buffer.from(await midiFile.file.arrayBuffer()),
-                        name: "effect.mid" 
+                      const inputObj = {
+                        "effect.mid": Buffer.from(await midiFile.file.arrayBuffer()),
+                        "infos.json": Buffer.from(JSON.stringify({ name: midiFileName, type: launchpadType },  null, 2), "utf8")
                       };
 
-                      const infos_file = {
-                        content: Buffer.from(JSON.stringify({
-                          name: midiFileName,
-                          type: launchpadType
-                        },  null, 2), "utf8"),
-                        name: "infos.json"
-                      };
-
-                      const files = [effect_file, infos_file];
-                      const bundle$1 = bundle.bundleBuffers(files);
+                      const bundle = bundler.bundleBuffers(inputObj);
                       
-                      const blob = new window.Blob([bundle$1]);
+                      const blob = new window.Blob([bundle]);
                       const file = new File([blob], midiFileName + ".dlpe");
 
                       originalMethod.apply(thisObject, [{

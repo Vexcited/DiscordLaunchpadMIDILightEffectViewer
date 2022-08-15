@@ -4,7 +4,7 @@ const https = window.require("https");
 import Launchpad from "../launchpads";
 
 import midiFileParser from "../utils/midiFileParser";
-import { unbundleBuffer } from "../utils/bundle";
+import { unbundleBuffer } from "../utils/bundler";
 import { playMidiFile } from "../utils/player";
 
 class DlpeAttachment extends BdApi.React.Component {
