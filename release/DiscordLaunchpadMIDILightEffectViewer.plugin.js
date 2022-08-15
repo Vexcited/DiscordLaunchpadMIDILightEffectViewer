@@ -827,6 +827,264 @@ class Launchpad extends BdApi.React.Component {
   }
 }
 
+// Source from <https://github.com/mat1jaczyyy/apollo-studio/blob/master/Apollo/Structures/Color.cs>.
+
+/**
+ * Converts an RGB color value to HSV.
+ *
+ * @param   Number  r       The red color value
+ * @param   Number  g       The green color value
+ * @param   Number  b       The blue color value
+ * @return  Array           The HSV representation
+ */
+function rgbToHsv(r, g, b) {
+  r /= 255, g /= 255, b /= 255;
+
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+
+  let hue = 0;
+  if (max != min) {
+    let diff = max - min;
+
+    if (max == r) {
+      hue = (g - b) / diff;
+    } else if (max == g) {
+      hue = (b - r) / diff + 2.0;
+    } else if (max == b) {
+      hue = (r - g) / diff + 4.0;
+    }
+    if (hue < 0) hue += 6.0;
+  }
+  
+  let saturation = 0;
+  if (max != 0) saturation = 1 - (min / max);
+
+  return [hue * 60, saturation, max];
+}
+
+const getUIColor = (color) => {
+  let [h, s, val] = rgbToHsv(...color);
+  s = Math.pow(s, 1.8);
+  val = Math.pow(val, 1 / 4.5);
+  
+  let fr, fg, fb;
+  
+  h /= 60;
+  
+  let hi = Math.floor(h) % 6;
+  let f = h - Math.floor(h);
+  val *= 255;
+  
+  let v = val;
+  let p = val * (1 - s);
+  let q = val * (1 - f * s);
+  let t = val * (1 - (1 - f) * s);
+  
+  if (hi == 0)      [fr, fg, fb] = [v, t, p];
+  else if (hi == 1) [fr, fg, fb] = [q, v, p];
+  else if (hi == 2) [fr, fg, fb] = [p, v, t];
+  else if (hi == 3) [fr, fg, fb] = [p, q, v];
+  else if (hi == 4) [fr, fg, fb] = [t, p, v];
+  else              [fr, fg, fb] = [v, p, q];
+ 
+  let max = Math.max(fr, fg, fb) / 255;
+  let bg = {
+    R: DEFAULT_RGB_UI_PAD[0],
+    G: DEFAULT_RGB_UI_PAD[1],
+    B: DEFAULT_RGB_UI_PAD[2]
+  };
+  
+  const new_color = [
+    Math.round((fr * max + bg.R * (1 - max))),
+    Math.round((fg * max + bg.G * (1 - max))),
+    Math.round((fb * max + bg.B * (1 - max)))
+  ];
+  
+  return new_color;
+};
+
+/** @param {ArrayBuffer} file */
+const midiFileParser = (file) => {
+  const midiObject = new Midi(file);
+
+  // Parse the notes.
+  const midi_data = midiObject.toJSON();
+  /** Notes of the first track of the MIDI file. */
+  const notes_data = midi_data.tracks[0].notes;
+
+  /**
+   * Here, we group the notes by time to setup the
+   * setTimeouts for each group, when needed to.
+   */
+  const grouped_notes = [];
+
+  /**
+   * Delay in MS. Kind of a "hack" to prevent pads from blinking.
+   * TODO: Make it configurable.
+   */
+  const delay = 20;
+
+  // Group the notes by time.
+  notes_data.forEach(note => {
+    const start_time = note.time * 1000;
+    const duration = (note.duration * 1000) + delay;
+
+    const convert_results = convertNoteLayout(note.midi, "drum_rack", "programmer");
+    if (!convert_results.success) return;
+
+    const colorFromPalette = novationLaunchpadPalette[note.velocity * 127];
+
+    const parsed_noteon = {
+      index: convert_results.note,
+      duration,
+      color: colorFromPalette,
+      uiColor: getUIColor(colorFromPalette)
+    };
+    
+    // const parsed_noteoff = {
+    //   index: convert_results.note,
+    //   duration: 0,
+    //   color: [0, 0, 0]
+    // };
+
+    const group_on = grouped_notes.find(
+      group => group.start_time === start_time
+    );
+
+    // const group_off = grouped_notes.find(
+    //   group => group.start_time === start_time + duration
+    // );
+
+    if (!group_on) {
+      grouped_notes.push({
+        start_time,
+        notes: [parsed_noteon]
+      });
+    } else group_on.notes.push(parsed_noteon);
+
+    // if (!group_off) {
+    //   grouped_notes.push({
+    //     start_time: start_time + duration,
+    //     notes: [parsed_noteoff]
+    //   });
+    // } else group_off.notes.push(parsed_noteoff);
+  });
+
+  return { notes: grouped_notes, length: grouped_notes.map(o => Math.max(...Object.values(o.notes).map(a => a.duration + o.start_time))) };
+};
+
+const BUF_SIGNATURE = new Buffer.from("DLPE", "ascii");
+
+/**
+ * @typedef {Buffer} input_buffer
+ */
+/**
+ * Unbundles a Buffer-Bundle
+ * ```
+ * const myBuffers = unbundleBuffer(myBuffer);
+ * console.log(myBuffers[0].content);
+ * ```
+ * @param {input_buffer} buf
+ */
+const unbundleBuffer = (buf) => {
+  if (!BUF_SIGNATURE.equals(buf.subarray(0, BUF_SIGNATURE.length))) {
+    throw Error("[Bundler] Bundle Signature is missing in the buffer");
+  }
+
+  const version = buf.readUInt8(BUF_SIGNATURE.length);
+
+  switch (version) {
+    case 0:
+      return unbundleV1(buf);
+    default:
+      throw Error(
+        `[Bundler] Bundle Format Version is invalid (got v${version.toString()})`
+      );
+  }
+};
+
+/**
+ * @typedef {Array} input_array
+ */
+/**
+ * Bundles into a Buffer-Bundle
+ * @param {...input_array} input_buffers
+ * 
+ * @example
+ * ```javascript
+ * const file1 = { content: Buffer.from("hello"), name: "file1" }
+ * const file2 = { content: Buffer.from(fs.readFileSync("file", "binary")), name: "file2" }
+ * const buf_bundled: Buffer = bundleBuffers([file1, file2])
+ * ```
+ */
+const bundleBuffers = (input_buffers) => {
+  const BUF_VERSION = Buffer.allocUnsafe(1);
+  BUF_VERSION.writeUInt8(0);
+
+  const output_buffers = [];
+
+  for (const { name: file_name, content: buf_content } of input_buffers) {
+    const buf_file_name = Buffer.from(file_name, "ascii");
+
+    const buf_file_name_length = Buffer.alloc(1);
+    buf_file_name_length.writeUInt8(buf_file_name.length, 0);
+
+    const buf_content_length = Buffer.alloc(4);
+    buf_content_length.writeUInt32LE(buf_content.length, 0);
+
+    const buf_file_result = Buffer.concat([
+      buf_file_name_length,
+      buf_file_name,
+      buf_content_length,
+      buf_content,
+    ]);
+    output_buffers.push(buf_file_result);
+  }
+
+  let files_count = Buffer.alloc(1);
+  files_count.writeUInt8(input_buffers.length);
+
+  return Buffer.concat([
+    BUF_SIGNATURE,
+    BUF_VERSION,
+    files_count,
+    ...output_buffers,
+  ]);
+};
+
+const unbundleV1 = (buf) => {
+  let offset = 1 + BUF_SIGNATURE.length;
+
+  let files_count = buf.readUInt8(offset);
+  offset += 1;
+
+  let files = [];
+  while (files_count--) {
+    const file_name_length = buf.readUInt8(offset);
+    offset += 1;
+    const file_name = buf.toString("ascii", offset, offset + file_name_length);
+    offset += file_name_length;
+
+    const content_length = buf.readUInt32LE(offset);
+    offset += 4;
+
+    const content = buf.subarray(offset, offset + content_length);
+    offset += content_length;
+
+    files.push({
+      name: file_name,
+      content,
+    });
+  }
+
+  return files;
+};
+
+var bundle = {
+  bundleBuffers,
+  unbundleBuffer,
+};
+
 /**
  * WEBMIDI.js v3.0.21
  * A JavaScript library to kickstart your MIDI projects
@@ -1223,262 +1481,83 @@ static toNoteNumber(e,t=0){if(t=null==t?0:parseInt(t),isNaN(t))throw new RangeEr
  * @license Apache-2.0
  */const d=new class extends e{constructor(){super(),this.defaults={note:{attack:r.from7bitToFloat(64),release:r.from7bitToFloat(64),duration:1/0}},this.interface=null,this.validation=!0,this._inputs=[],this._disconnectedInputs=[],this._outputs=[],this._disconnectedOutputs=[],this._stateChangeQueue=[],this._octaveOffset=0;}async enable(e={},t=!1){if(r.isNode){try{window.navigator;}catch(e){global.navigator=await Object.getPrototypeOf((async function(){})).constructor('\n        let jzz = await import("jzz");\n        return jzz.default;\n        ')();}try{performance;}catch(e){global.performance=await Object.getPrototypeOf((async function(){})).constructor('\n        let perf_hooks = await import("perf_hooks");\n        return perf_hooks.performance;\n        ')();}}if(this.validation=!1!==e.validation,this.validation&&("function"==typeof e&&(e={callback:e,sysex:t}),t&&(e.sysex=!0)),this.enabled)return "function"==typeof e.callback&&e.callback(),Promise.resolve();const n={timestamp:this.time,target:this,type:"error",error:void 0},s={timestamp:this.time,target:this,type:"midiaccessgranted"},a={timestamp:this.time,target:this,type:"enabled"};try{"function"==typeof e.requestMIDIAccessFunction?this.interface=await e.requestMIDIAccessFunction({sysex:e.sysex,software:e.software}):this.interface=await navigator.requestMIDIAccess({sysex:e.sysex,software:e.software});}catch(t){return n.error=t,this.emit("error",n),"function"==typeof e.callback&&e.callback(t),Promise.reject(t)}this.emit("midiaccessgranted",s),this.interface.onstatechange=this._onInterfaceStateChange.bind(this);try{await this._updateInputsAndOutputs();}catch(t){return n.error=t,this.emit("error",n),"function"==typeof e.callback&&e.callback(t),Promise.reject(t)}return this.emit("enabled",a),"function"==typeof e.callback&&e.callback(),Promise.resolve(this)}async disable(){return this._destroyInputsAndOutputs().then(()=>{navigator&&"function"==typeof navigator.close&&navigator.close(),this.interface&&(this.interface.onstatechange=void 0),this.interface=null;let e={timestamp:this.time,target:this,type:"disabled"};this.emit("disabled",e),this.removeListener();})}getInputById(e,t={disconnected:!1}){if(this.validation){if(!this.enabled)throw new Error("WebMidi is not enabled.");if(!e)return}if(t.disconnected){for(let t=0;t<this._disconnectedInputs.length;t++)if(this._disconnectedInputs[t].id===e.toString())return this._disconnectedInputs[t]}else for(let t=0;t<this.inputs.length;t++)if(this.inputs[t].id===e.toString())return this.inputs[t]}getInputByName(e,t={disconnected:!1}){if(this.validation){if(!this.enabled)throw new Error("WebMidi is not enabled.");if(!e)return;e=e.toString();}if(t.disconnected){for(let t=0;t<this._disconnectedInputs.length;t++)if(~this._disconnectedInputs[t].name.indexOf(e))return this._disconnectedInputs[t]}else for(let t=0;t<this.inputs.length;t++)if(~this.inputs[t].name.indexOf(e))return this.inputs[t]}getOutputByName(e,t={disconnected:!1}){if(this.validation){if(!this.enabled)throw new Error("WebMidi is not enabled.");if(!e)return;e=e.toString();}if(t.disconnected){for(let t=0;t<this._disconnectedOutputs.length;t++)if(~this._disconnectedOutputs[t].name.indexOf(e))return this._disconnectedOutputs[t]}else for(let t=0;t<this.outputs.length;t++)if(~this.outputs[t].name.indexOf(e))return this.outputs[t]}getOutputById(e,t={disconnected:!1}){if(this.validation){if(!this.enabled)throw new Error("WebMidi is not enabled.");if(!e)return}if(t.disconnected){for(let t=0;t<this._disconnectedOutputs.length;t++)if(this._disconnectedOutputs[t].id===e.toString())return this._disconnectedOutputs[t]}else for(let t=0;t<this.outputs.length;t++)if(this.outputs[t].id===e.toString())return this.outputs[t]}noteNameToNumber(e){return this.validation&&console.warn("The noteNameToNumber() method is deprecated. Use Utilities.toNoteNumber() instead."),r.toNoteNumber(e,this.octaveOffset)}getOctave(e){return this.validation&&(console.warn("The getOctave()is deprecated. Use Utilities.getNoteDetails() instead"),e=parseInt(e)),!isNaN(e)&&e>=0&&e<=127&&r.getNoteDetails(r.offsetNumber(e,this.octaveOffset)).octave}sanitizeChannels(e){return this.validation&&console.warn("The sanitizeChannels() method has been moved to the utilities class."),r.sanitizeChannels(e)}toMIDIChannels(e){return this.validation&&console.warn("The toMIDIChannels() method has been deprecated. Use Utilities.sanitizeChannels() instead."),r.sanitizeChannels(e)}guessNoteNumber(e){return this.validation&&console.warn("The guessNoteNumber() method has been deprecated. Use Utilities.guessNoteNumber() instead."),r.guessNoteNumber(e,this.octaveOffset)}getValidNoteArray(e,t={}){return this.validation&&console.warn("The getValidNoteArray() method has been moved to the Utilities.buildNoteArray()"),r.buildNoteArray(e,t)}convertToTimestamp(e){return this.validation&&console.warn("The convertToTimestamp() method has been moved to Utilities.toTimestamp()."),r.toTimestamp(e)}async _destroyInputsAndOutputs(){let e=[];return this.inputs.forEach(t=>e.push(t.destroy())),this.outputs.forEach(t=>e.push(t.destroy())),Promise.all(e).then(()=>{this._inputs=[],this._outputs=[];})}_onInterfaceStateChange(e){this._updateInputsAndOutputs();let t={timestamp:e.timeStamp,type:e.port.state,target:this};if("connected"===e.port.state&&"open"===e.port.connection){"output"===e.port.type?t.port=this.getOutputById(e.port.id):"input"===e.port.type&&(t.port=this.getInputById(e.port.id)),this.emit(e.port.state,t);const n=Object.assign({},t);n.type="portschanged",this.emit(n.type,n);}else if("disconnected"===e.port.state&&"pending"===e.port.connection){"input"===e.port.type?t.port=this.getInputById(e.port.id,{disconnected:!0}):"output"===e.port.type&&(t.port=this.getOutputById(e.port.id,{disconnected:!0})),this.emit(e.port.state,t);const n=Object.assign({},t);n.type="portschanged",this.emit(n.type,n);}}async _updateInputsAndOutputs(){return Promise.all([this._updateInputs(),this._updateOutputs()])}async _updateInputs(){if(!this.interface)return;for(let e=this._inputs.length-1;e>=0;e--){const t=this._inputs[e];Array.from(this.interface.inputs.values()).find(e=>e===t._midiInput)||(this._disconnectedInputs.push(t),this._inputs.splice(e,1));}let e=[];return this.interface.inputs.forEach(t=>{if(!this._inputs.find(e=>e._midiInput===t)){let n=this._disconnectedInputs.find(e=>e._midiInput===t);n||(n=new c(t)),this._inputs.push(n),e.push(n.open());}}),Promise.all(e)}async _updateOutputs(){if(!this.interface)return;for(let e=this._outputs.length-1;e>=0;e--){const t=this._outputs[e];Array.from(this.interface.outputs.values()).find(e=>e===t._midiOutput)||(this._disconnectedOutputs.push(t),this._outputs.splice(e,1));}let e=[];return this.interface.outputs.forEach(t=>{if(!this._outputs.find(e=>e._midiOutput===t)){let n=this._disconnectedOutputs.find(e=>e._midiOutput===t);n||(n=new i(t)),this._outputs.push(n),e.push(n.open());}}),Promise.all(e)}get enabled(){return null!==this.interface}get inputs(){return this._inputs}get isNode(){return this.validation&&console.warn("WebMidi.isNode has been deprecated. Use Utilities.isNode instead."),r.isNode}get isBrowser(){return this.validation&&console.warn("WebMidi.isBrowser has been deprecated. Use Utilities.isBrowser instead."),r.isBrowser}get octaveOffset(){return this._octaveOffset}set octaveOffset(e){if(this.validation&&(e=parseInt(e),isNaN(e)))throw new TypeError("The 'octaveOffset' property must be an integer.");this._octaveOffset=e;}get outputs(){return this._outputs}get supported(){return "undefined"!=typeof navigator&&navigator.requestMIDIAccess}get sysexEnabled(){return !(!this.interface||!this.interface.sysexEnabled)}get time(){return performance.now()}get version(){return "3.0.21"}get CHANNEL_EVENTS(){return this.validation&&console.warn("The CHANNEL_EVENTS enum has been moved to Enumerations.CHANNEL_EVENTS."),n.CHANNEL_EVENTS}get MIDI_SYSTEM_MESSAGES(){return this.validation&&console.warn("The MIDI_SYSTEM_MESSAGES enum has been moved to Enumerations.MIDI_SYSTEM_MESSAGES."),n.MIDI_SYSTEM_MESSAGES}get MIDI_CHANNEL_MODE_MESSAGES(){return this.validation&&console.warn("The MIDI_CHANNEL_MODE_MESSAGES enum has been moved to Enumerations.MIDI_CHANNEL_MODE_MESSAGES."),n.MIDI_CHANNEL_MODE_MESSAGES}get MIDI_CONTROL_CHANGE_MESSAGES(){return this.validation&&console.warn("The MIDI_CONTROL_CHANGE_MESSAGES enum has been moved to Enumerations.MIDI_CONTROL_CHANGE_MESSAGES."),n.MIDI_CONTROL_CHANGE_MESSAGES}get MIDI_REGISTERED_PARAMETER(){return this.validation&&console.warn("The MIDI_REGISTERED_PARAMETER enum has been moved to Enumerations.MIDI_REGISTERED_PARAMETERS."),this.MIDI_REGISTERED_PARAMETERS}get NOTES(){return this.validation&&console.warn("The NOTES enum has been deprecated."),["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]}};d.constructor=null;
 
-// Source from <https://github.com/mat1jaczyyy/apollo-studio/blob/master/Apollo/Structures/Color.cs>.
+const deviceOutput = () => {
+  const loaded_id = BDFDB.DataUtils.load(pkg.className, "output");
+  const loaded_type = BDFDB.DataUtils.load(pkg.className, "type");
+
+  if (typeof loaded_id === "string" && typeof loaded_type === "string") return {
+    output: d.outputs.find(output => output.id === loaded_id),
+    type: loaded_type
+  }
+
+  return null;
+};
 
 /**
- * Converts an RGB color value to HSV.
- *
- * @param   Number  r       The red color value
- * @param   Number  g       The green color value
- * @param   Number  b       The blue color value
- * @return  Array           The HSV representation
+ * @param {HTMLElement} launchpad
+ * @param {any[]} midi
  */
-function rgbToHsv(r, g, b) {
-  r /= 255, g /= 255, b /= 255;
+const playMidiFile = async (launchpad, midi) => {
+  if (!launchpad || !midi) return;
 
-  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const device = deviceOutput();
+  const device_configuration = device ? devicesConfiguration[device.type] : null;
 
-  let hue = 0;
-  if (max != min) {
-    let diff = max - min;
+  const playTimeStart = performance.now();
+  console.log(midi);
 
-    if (max == r) {
-      hue = (g - b) / diff;
-    } else if (max == g) {
-      hue = (b - r) / diff + 2.0;
-    } else if (max == b) {
-      hue = (r - g) / diff + 4.0;
+  for (const group of midi.notes) {
+    const groupStartTime = group.start_time;
+    if (groupStartTime < performance.now() - playTimeStart) continue;
+
+    if (device.output) {
+      const leds = group.notes.map(note => ({
+        note: note.index,
+        color: note.color
+      }));
+
+      const sysex = device_configuration.rgb_sysex(leds);
+      device.output.sendSysex([], sysex);
     }
-    if (hue < 0) hue += 6.0;
+
+    let toWait = groupStartTime - (performance.now() - playTimeStart);
+    await new Promise(r => setTimeout(r, toWait));
+
+    for (const note of group.notes) {
+      // Get the pad element from the Launchpad.
+      const pad = launchpad.querySelector(`[data-note="${note.index}"]`);
+      if (!pad) continue;
+      
+      const colored_pad_style = `rgb(${note.uiColor.join(", ")})`;
+
+      // Set the color of the pad for the `noteon`.
+      pad.style.backgroundColor = colored_pad_style;
+
+      // Setup the timing for the `noteoff`.
+      setTimeout(() => {
+        const current_style = pad.style.backgroundColor;
+        if (!current_style) return;
+
+        /**
+         * Check if the pad haven't been triggered.
+         * If triggered with another color, then we do nothing
+         * and let the other trigger, handle everything.
+         * If it's still the same color, we remove it.
+         */
+        if (current_style === colored_pad_style) {
+          // Remove the color of the pad for the `noteoff`.
+          pad.style.backgroundColor = `rgb(${DEFAULT_RGB_UI_PAD.join(", ")})`;
+
+          if (device.output) {
+            const sysex = device_configuration.rgb_sysex([{
+              note: note.index, color: [0, 0, 0]
+            }]);
+            device.output.sendSysex([], sysex);
+          }
+        } 
+      }, note.duration);
+    }
   }
-  
-  let saturation = 0;
-  if (max != 0) saturation = 1 - (min / max);
-
-  return [hue * 60, saturation, max];
-}
-
-const getUIColor = (color) => {
-  let [h, s, val] = rgbToHsv(...color);
-  s = Math.pow(s, 1.8);
-  val = Math.pow(val, 1 / 4.5);
-  
-  let fr, fg, fb;
-  
-  h /= 60;
-  
-  let hi = Math.floor(h) % 6;
-  let f = h - Math.floor(h);
-  val *= 255;
-  
-  let v = val;
-  let p = val * (1 - s);
-  let q = val * (1 - f * s);
-  let t = val * (1 - (1 - f) * s);
-  
-  if (hi == 0)      [fr, fg, fb] = [v, t, p];
-  else if (hi == 1) [fr, fg, fb] = [q, v, p];
-  else if (hi == 2) [fr, fg, fb] = [p, v, t];
-  else if (hi == 3) [fr, fg, fb] = [p, q, v];
-  else if (hi == 4) [fr, fg, fb] = [t, p, v];
-  else              [fr, fg, fb] = [v, p, q];
- 
-  let max = Math.max(fr, fg, fb) / 255;
-  let bg = {
-    R: DEFAULT_RGB_UI_PAD[0],
-    G: DEFAULT_RGB_UI_PAD[1],
-    B: DEFAULT_RGB_UI_PAD[2]
-  };
-  
-  const new_color = [
-    Math.round((fr * max + bg.R * (1 - max))),
-    Math.round((fg * max + bg.G * (1 - max))),
-    Math.round((fb * max + bg.B * (1 - max)))
-  ];
-  
-  return new_color;
-};
-
-/** @param {ArrayBuffer} file */
-const midiFileParser = async (file) => {
-  const midiObject = new Midi(file);
-
-  // Parse the notes.
-  const midi_data = midiObject.toJSON();
-  /** Notes of the first track of the MIDI file. */
-  const notes_data = midi_data.tracks[0].notes;
-
-  /**
-   * Here, we group the notes by time to setup the
-   * setTimeouts for each group, when needed to.
-   */
-  const grouped_notes = [];
-
-  /**
-   * Delay in MS. Kind of a "hack" to prevent pads from blinking.
-   * TODO: Make it configurable.
-   */
-  const delay = 20;
-
-  // Group the notes by time.
-  notes_data.forEach(note => {
-    const start_time = note.time * 1000;
-    const duration = (note.duration * 1000) + delay;
-
-    const convert_results = convertNoteLayout(note.midi, "drum_rack", "programmer");
-    if (!convert_results.success) return;
-
-    const colorFromPalette = novationLaunchpadPalette[note.velocity * 127];
-
-    const parsed_noteon = {
-      index: convert_results.note,
-      duration,
-      color: colorFromPalette,
-      uiColor: getUIColor(colorFromPalette)
-    };
-    
-    // const parsed_noteoff = {
-    //   index: convert_results.note,
-    //   duration: 0,
-    //   color: [0, 0, 0]
-    // };
-
-    const group_on = grouped_notes.find(
-      group => group.start_time === start_time
-    );
-
-    // const group_off = grouped_notes.find(
-    //   group => group.start_time === start_time + duration
-    // );
-
-    if (!group_on) {
-      grouped_notes.push({
-        start_time,
-        notes: [parsed_noteon]
-      });
-    } else group_on.notes.push(parsed_noteon);
-
-    // if (!group_off) {
-    //   grouped_notes.push({
-    //     start_time: start_time + duration,
-    //     notes: [parsed_noteoff]
-    //   });
-    // } else group_off.notes.push(parsed_noteoff);
-  });
-
-  return grouped_notes;
-};
-
-const BUF_SIGNATURE = new Buffer.from("DLPE", "ascii");
-
-/**
- * @typedef {Buffer} input_buffer
- */
-/**
- * Unbundles a Buffer-Bundle
- * ```
- * const myBuffers = unbundleBuffer(myBuffer);
- * console.log(myBuffers[0].content);
- * ```
- * @param {input_buffer} buf
- */
-const unbundleBuffer = (buf) => {
-  if (!BUF_SIGNATURE.equals(buf.subarray(0, BUF_SIGNATURE.length))) {
-    throw Error("[Bundler] Bundle Signature is missing in the buffer");
-  }
-
-  const version = buf.readUInt8(BUF_SIGNATURE.length);
-
-  switch (version) {
-    case 0:
-      return unbundleV1(buf);
-    default:
-      throw Error(
-        `[Bundler] Bundle Format Version is invalid (got v${version.toString()})`
-      );
-  }
-};
-
-/**
- * @typedef {Array} input_array
- */
-/**
- * Bundles into a Buffer-Bundle
- * @param {...input_array} input_buffers
- * 
- * @example
- * ```javascript
- * const file1 = { content: Buffer.from("hello"), name: "file1" }
- * const file2 = { content: Buffer.from(fs.readFileSync("file", "binary")), name: "file2" }
- * const buf_bundled: Buffer = bundleBuffers([file1, file2])
- * ```
- */
-const bundleBuffers = (input_buffers) => {
-  const BUF_VERSION = Buffer.allocUnsafe(1);
-  BUF_VERSION.writeUInt8(0);
-
-  const output_buffers = [];
-
-  for (const { name: file_name, content: buf_content } of input_buffers) {
-    const buf_file_name = Buffer.from(file_name, "ascii");
-
-    const buf_file_name_length = Buffer.alloc(1);
-    buf_file_name_length.writeUInt8(buf_file_name.length, 0);
-
-    const buf_content_length = Buffer.alloc(4);
-    buf_content_length.writeUInt32LE(buf_content.length, 0);
-
-    const buf_file_result = Buffer.concat([
-      buf_file_name_length,
-      buf_file_name,
-      buf_content_length,
-      buf_content,
-    ]);
-    output_buffers.push(buf_file_result);
-  }
-
-  let files_count = Buffer.alloc(1);
-  files_count.writeUInt8(input_buffers.length);
-
-  return Buffer.concat([
-    BUF_SIGNATURE,
-    BUF_VERSION,
-    files_count,
-    ...output_buffers,
-  ]);
-};
-
-const unbundleV1 = (buf) => {
-  let offset = 1 + BUF_SIGNATURE.length;
-
-  let files_count = buf.readUInt8(offset);
-  offset += 1;
-
-  let files = [];
-  while (files_count--) {
-    const file_name_length = buf.readUInt8(offset);
-    offset += 1;
-    const file_name = buf.toString("ascii", offset, offset + file_name_length);
-    offset += file_name_length;
-
-    const content_length = buf.readUInt32LE(offset);
-    offset += 4;
-
-    const content = buf.subarray(offset, offset + content_length);
-    offset += content_length;
-
-    files.push({
-      name: file_name,
-      content,
-    });
-  }
-
-  return files;
-};
-
-var bundle = {
-  bundleBuffers,
-  unbundleBuffer,
 };
 
 const https = window.require("https");
@@ -1512,7 +1591,7 @@ class DlpeAttachment extends BdApi.React.Component {
           chunks.push(Buffer.from(chunk, "binary"));
       });
   
-      res.on("end", async () => {
+      res.on("end", () => {
         try {
           const binary = Buffer.concat(chunks);        
           const data = bundle.unbundleBuffer(binary);
@@ -1527,7 +1606,7 @@ class DlpeAttachment extends BdApi.React.Component {
           }
   
           const infos_parsed = JSON.parse(infos_file.content.toString());
-          const midi_parsed = await midiFileParser(midi_file.content);
+          const midi_parsed = midiFileParser(midi_file.content);
   
           this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
         }
@@ -1541,80 +1620,6 @@ class DlpeAttachment extends BdApi.React.Component {
 
   render () {
     if (this.state.hasError) return this.props.originalChildren;
-    const deviceOutput = () => {
-      const loaded_id = BDFDB.DataUtils.load(pkg.className, "output");
-      const loaded_type = BDFDB.DataUtils.load(pkg.className, "type");
-
-      if (typeof loaded_id === "string" && typeof loaded_type === "string") return {
-        output: d.outputs.find(output => output.id === loaded_id),
-        type: loaded_type
-      }
-
-      return null;
-    };
-
-    const playMidiFile = async () => {
-      const launchpad = this.launchpad_ref?.current;
-      const midi = this.state.midi;
-      if (!launchpad || !midi) return;
-
-      const device = deviceOutput();
-      const device_configuration = device ? devicesConfiguration[device.type] : null;
-
-      const playTimeStart = performance.now();
-      for (const group of midi) {
-        const groupStartTime = group.start_time;
-        if (groupStartTime < performance.now() - playTimeStart) continue;
-
-        if (device.output) {
-          const leds = group.notes.map(note => ({
-            note: note.index,
-            color: note.color
-          }));
-
-          const sysex = device_configuration.rgb_sysex(leds);
-          device.output.sendSysex([], sysex);
-        }
-    
-        let toWait = groupStartTime - (performance.now() - playTimeStart);
-        await new Promise(r => setTimeout(r, toWait));
-
-        for (const note of group.notes) {
-          // Get the pad element from the Launchpad.
-          const pad = launchpad.querySelector(`[data-note="${note.index}"]`);
-          if (!pad) continue;
-          
-          const colored_pad_style = `rgb(${note.uiColor.join(", ")})`;
-
-          // Set the color of the pad for the `noteon`.
-          pad.style.backgroundColor = colored_pad_style;
-
-          // Setup the timing for the `noteoff`.
-          setTimeout(() => {
-            const current_style = pad.style.backgroundColor;
-            if (!current_style) return;
-
-            /**
-             * Check if the pad haven't been triggered.
-             * If triggered with another color, then we do nothing
-             * and let the other trigger, handle everything.
-             * If it's still the same color, we remove it.
-             */
-            if (current_style === colored_pad_style) {
-              // Remove the color of the pad for the `noteoff`.
-              pad.style.backgroundColor = `rgb(${DEFAULT_RGB_UI_PAD.join(", ")})`;
-
-              if (device.output) {
-                const sysex = device_configuration.rgb_sysex([{
-                  note: note.index, color: [0, 0, 0]
-                }]);
-                device.output.sendSysex([], sysex);
-              }
-            } 
-          }, note.duration);
-        }
-      }
-    };
 
     return this.state.loaded
     ? BDFDB.ReactUtils.createElement("div", {
@@ -1643,7 +1648,7 @@ class DlpeAttachment extends BdApi.React.Component {
           })
         }),
         BDFDB.ReactUtils.createElement("button", {
-          onClick: playMidiFile,
+          onClick: () => playMidiFile(this.launchpad_ref?.current, this.state.midi),
           children: "Play"
         })
       ]

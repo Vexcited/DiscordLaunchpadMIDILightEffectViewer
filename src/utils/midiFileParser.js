@@ -7,7 +7,7 @@ export const checkIsNoteOff = (note) => {
 };
 
 /** @param {ArrayBuffer} file */
-const midiFileParser = async (file) => {
+const midiFileParser = (file) => {
   const midiObject = new Midi(file);
 
   // Parse the notes.
@@ -73,7 +73,7 @@ const midiFileParser = async (file) => {
     // } else group_off.notes.push(parsed_noteoff);
   });
 
-  return grouped_notes;
+  return { notes: grouped_notes, length: Math.max(...grouped_notes.map(o => Math.max(...Object.values(o.notes).map(a => a.duration + o.start_time)))) };
 
   // Cleanup the grouped notes.
   const cleanedGroupedNotes = [];
