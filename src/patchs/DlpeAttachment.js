@@ -8,6 +8,8 @@ import midiFileParser from "../utils/midiFileParser";
 import { devicesConfiguration } from "../utils/devices";
 import { DEFAULT_RGB_UI_PAD } from "../utils/palettes";
 
+import { unbundleBuffer } from "../utils/bundle";
+
 class DlpeAttachment extends BdApi.React.Component {
   constructor(props) {
     super(props);
@@ -38,24 +40,28 @@ class DlpeAttachment extends BdApi.React.Component {
       });
   
       res.on("end", async () => {
-          const binary = Buffer.concat(chunks);
-          const uint8Array = new Uint8Array(binary);
+        try {
+          const binary = Buffer.concat(chunks);        
+          const data = unbundleBuffer(binary);
 
-          const zip = await JSZip.loadAsync(uint8Array);
-          
-          const infos_file = await zip.file("infos.json")?.async("string");
-          const midi_file = await zip.file("effect.mid")?.async("arraybuffer");
-
+          const infos_file = data.find(file => file.name === "infos.json");
+          const midi_file = data.find(file => file.name === "effect.mid");
+  
           if (!infos_file || !midi_file) {
             console.error(`[${pkg.className}] Invalid DLPE file: missing infos.json or effect.mid. Aborting.`);
             this.setState({ hasError: true });
             return;
           }
-
-          const infos_parsed = JSON.parse(infos_file);
-          const midi_parsed = await midiFileParser(midi_file);
-
+  
+          const infos_parsed = JSON.parse(infos_file.content.toString());
+          const midi_parsed = await midiFileParser(midi_file.content);
+  
           this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
+        }
+        catch (e) {
+          console.error(`[${pkg.className}] Error while parsing DLPE file: ${e.message}`);
+          this.setState({ hasError: true });
+        }
       });
     });
   }
@@ -131,7 +137,7 @@ class DlpeAttachment extends BdApi.React.Component {
                 }]);
                 device.output.sendSysex([], sysex);
               }
-            }
+            } 
           }, note.duration);
         }
       }

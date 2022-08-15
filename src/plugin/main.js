@@ -6,6 +6,8 @@ import DlpeAttachment from "../patchs/DlpeAttachment";
 
 import { WebMidi } from "webmidi";
 
+import { bundleBuffers } from "../utils/bundle";
+
 import {
   removeMidiPermissions,
   injectMidiPermissions,
@@ -160,24 +162,31 @@ export default (([Plugin, BDFDB]) => {
                     onClick: async () => {
                       BDFDB.LibraryModules.ModalUtils.closeAllModals();
 
-                      const zip = new JSZip();
-                      zip.file("effect.mid", midiFile.file);
-                      zip.file("infos.json", JSON.stringify({
-                        name: midiFileName,
-                        type: launchpadType
-                      }, null, 2));
-
-                      const blob = await zip.generateAsync({ type: "uint8array" });
-                      const zip_file = new File([blob], midiFileName + ".dlpe.zip", { type: "application/zip" });
-                      
-                      const file = {
-                        file: zip_file,
-                        platform: 1
+                      const effect_file = {
+                        content: Buffer.from(await midiFile.file.arrayBuffer()),
+                        name: "effect.mid" 
                       };
+
+                      const infos_file = {
+                        content: Buffer.from(JSON.stringify({
+                          name: midiFileName,
+                          type: launchpadType
+                        },  null, 2), "utf8"),
+                        name: "infos.json"
+                      }
+
+                      const files = [effect_file, infos_file];
+                      const bundle = bundleBuffers(files);
+                      
+                      const blob = new window.Blob([bundle]);
+                      const file = new File([blob], midiFileName + ".dlpe");
 
                       originalMethod.apply(thisObject, [{
                         ...params,
-                        files: [file]
+                        files: [{
+                          file,
+                          platform: 1
+                        }]
                       }]);
                     }
                   }, {
@@ -204,43 +213,14 @@ export default (([Plugin, BDFDB]) => {
     }
 
     _setupAttachmentPatch () {
-      // const AttachmentModule = BdApi.findModule(
-      //   (m) => m.default?.displayName === "Attachment"
-      // );
-
       const MessageAttachmentModule = BdApi.findModule(
         (m) => m.default?.displayName === "MessageAttachment"
       );
 
-      // const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
-      //   after: ({ returnValue }) => {
-      //     if (
-      //       returnValue.props?.children?.length === 0 ||
-      //       !returnValue.props.children[0]?.props?.children.length === 0 ||
-      //       !returnValue.props.children[0]?.props?.children[2]?.props.href
-      //     ) return;
-
-          
-      //     console.log(returnValue);
-      //     return;
-
-      //     const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
-      //     if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
-
-      //     const originalChildren = [...returnValue.props.children];
-      //     returnValue.props.children[0].props.children = [
-      //       BDFDB.ReactUtils.createElement(DlpeAttachment, {
-      //         url: fileUrl,
-      //         originalChildren
-      //       })
-      //     ];
-      //   }
-      // });
-
       const cleanAttachmentPatch = BdApi.monkeyPatch(MessageAttachmentModule, "default", {
         after: ({ returnValue }) => {
           const fileUrl = returnValue?.props?.children?.props?.attachment?.url;
-          if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
+          if (!fileUrl.toLowerCase().endsWith(".dlpe")) return;
 
           const originalChildren = { ...returnValue.props.children };
           returnValue.props.children = [
@@ -282,11 +262,6 @@ export default (([Plugin, BDFDB]) => {
       await BdApi.linkJS(INJECTED_JS_MIDI_ID, "https://unpkg.com/@tonejs/midi");
       this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_MIDI_ID));
       
-      // Inject ZIP JS library.
-      const INJECTED_JS_ZIP_ID = "DLE_LAUNCHPAD_INJECTED_ZIP_JS";
-      await BdApi.linkJS(INJECTED_JS_ZIP_ID, "https://unpkg.com/jszip@latest/dist/jszip.min.js");
-      this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_ZIP_ID));
-
       // Re-define the define function.
       window.define = old_define;
 

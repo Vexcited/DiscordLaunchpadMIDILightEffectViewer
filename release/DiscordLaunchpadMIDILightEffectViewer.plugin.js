@@ -1369,6 +1369,118 @@ const midiFileParser = async (file) => {
   return grouped_notes;
 };
 
+const BUF_SIGNATURE = new Buffer.from("DLPE", "ascii");
+
+/**
+ * @typedef {Buffer} input_buffer
+ */
+/**
+ * Unbundles a Buffer-Bundle
+ * ```
+ * const myBuffers = unbundleBuffer(myBuffer);
+ * console.log(myBuffers[0].content);
+ * ```
+ * @param {input_buffer} buf
+ */
+const unbundleBuffer = (buf) => {
+  if (!BUF_SIGNATURE.equals(buf.subarray(0, BUF_SIGNATURE.length))) {
+    throw Error("[Bundler] Bundle Signature is missing in the buffer");
+  }
+
+  const version = buf.readUInt8(BUF_SIGNATURE.length);
+
+  switch (version) {
+    case 0:
+      return unbundleV1(buf);
+    default:
+      throw Error(
+        `[Bundler] Bundle Format Version is invalid (got v${version.toString()})`
+      );
+  }
+};
+
+/**
+ * @typedef {Array} input_array
+ */
+/**
+ * Bundles into a Buffer-Bundle
+ * @param {...input_array} input_buffers
+ * 
+ * @example
+ * ```javascript
+ * const file1 = { content: Buffer.from("hello"), name: "file1" }
+ * const file2 = { content: Buffer.from(fs.readFileSync("file", "binary")), name: "file2" }
+ * const buf_bundled: Buffer = bundleBuffers([file1, file2])
+ * ```
+ */
+const bundleBuffers = (input_buffers) => {
+  const BUF_VERSION = Buffer.allocUnsafe(1);
+  BUF_VERSION.writeUInt8(0);
+
+  const output_buffers = [];
+
+  for (const { name: file_name, content: buf_content } of input_buffers) {
+    const buf_file_name = Buffer.from(file_name, "ascii");
+
+    const buf_file_name_length = Buffer.alloc(1);
+    buf_file_name_length.writeUInt8(buf_file_name.length, 0);
+
+    const buf_content_length = Buffer.alloc(4);
+    buf_content_length.writeUInt32LE(buf_content.length, 0);
+
+    const buf_file_result = Buffer.concat([
+      buf_file_name_length,
+      buf_file_name,
+      buf_content_length,
+      buf_content,
+    ]);
+    output_buffers.push(buf_file_result);
+  }
+
+  let files_count = Buffer.alloc(1);
+  files_count.writeUInt8(input_buffers.length);
+
+  return Buffer.concat([
+    BUF_SIGNATURE,
+    BUF_VERSION,
+    files_count,
+    ...output_buffers,
+  ]);
+};
+
+const unbundleV1 = (buf) => {
+  let offset = 1 + BUF_SIGNATURE.length;
+
+  let files_count = buf.readUInt8(offset);
+  offset += 1;
+
+  let files = [];
+  while (files_count--) {
+    const file_name_length = buf.readUInt8(offset);
+    offset += 1;
+    const file_name = buf.toString("ascii", offset, offset + file_name_length);
+    offset += file_name_length;
+
+    const content_length = buf.readUInt32LE(offset);
+    offset += 4;
+
+    const content = buf.subarray(offset, offset + content_length);
+    offset += content_length;
+
+    files.push({
+      name: file_name,
+      content,
+    });
+  }
+
+  return files;
+};
+
+var bundle = {
+  bundleBuffers,
+  unbundleBuffer,
+};
+
 const https = window.require("https");
 
 class DlpeAttachment extends BdApi.React.Component {
@@ -1401,24 +1513,28 @@ class DlpeAttachment extends BdApi.React.Component {
       });
   
       res.on("end", async () => {
-          const binary = Buffer.concat(chunks);
-          const uint8Array = new Uint8Array(binary);
+        try {
+          const binary = Buffer.concat(chunks);        
+          const data = bundle.unbundleBuffer(binary);
 
-          const zip = await JSZip.loadAsync(uint8Array);
-          
-          const infos_file = await zip.file("infos.json")?.async("string");
-          const midi_file = await zip.file("effect.mid")?.async("arraybuffer");
-
+          const infos_file = data.find(file => file.name === "infos.json");
+          const midi_file = data.find(file => file.name === "effect.mid");
+  
           if (!infos_file || !midi_file) {
             console.error(`[${pkg.className}] Invalid DLPE file: missing infos.json or effect.mid. Aborting.`);
             this.setState({ hasError: true });
             return;
           }
-
-          const infos_parsed = JSON.parse(infos_file);
-          const midi_parsed = await midiFileParser(midi_file);
-
+  
+          const infos_parsed = JSON.parse(infos_file.content.toString());
+          const midi_parsed = await midiFileParser(midi_file.content);
+  
           this.setState({ loaded: true, midi: midi_parsed, infos: infos_parsed });
+        }
+        catch (e) {
+          console.error(`[${pkg.className}] Error while parsing DLPE file: ${e.message}`);
+          this.setState({ hasError: true });
+        }
       });
     });
   }
@@ -1494,7 +1610,7 @@ class DlpeAttachment extends BdApi.React.Component {
                 }]);
                 device.output.sendSysex([], sysex);
               }
-            }
+            } 
           }, note.duration);
         }
       }
@@ -1773,24 +1889,31 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
                     onClick: async () => {
                       BDFDB.LibraryModules.ModalUtils.closeAllModals();
 
-                      const zip = new JSZip();
-                      zip.file("effect.mid", midiFile.file);
-                      zip.file("infos.json", JSON.stringify({
-                        name: midiFileName,
-                        type: launchpadType
-                      }, null, 2));
-
-                      const blob = await zip.generateAsync({ type: "uint8array" });
-                      const zip_file = new File([blob], midiFileName + ".dlpe.zip", { type: "application/zip" });
-                      
-                      const file = {
-                        file: zip_file,
-                        platform: 1
+                      const effect_file = {
+                        content: Buffer.from(await midiFile.file.arrayBuffer()),
+                        name: "effect.mid" 
                       };
+
+                      const infos_file = {
+                        content: Buffer.from(JSON.stringify({
+                          name: midiFileName,
+                          type: launchpadType
+                        },  null, 2), "utf8"),
+                        name: "infos.json"
+                      };
+
+                      const files = [effect_file, infos_file];
+                      const bundle$1 = bundle.bundleBuffers(files);
+                      
+                      const blob = new window.Blob([bundle$1]);
+                      const file = new File([blob], midiFileName + ".dlpe");
 
                       originalMethod.apply(thisObject, [{
                         ...params,
-                        files: [file]
+                        files: [{
+                          file,
+                          platform: 1
+                        }]
                       }]);
                     }
                   }, {
@@ -1817,43 +1940,14 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
     }
 
     _setupAttachmentPatch () {
-      // const AttachmentModule = BdApi.findModule(
-      //   (m) => m.default?.displayName === "Attachment"
-      // );
-
       const MessageAttachmentModule = BdApi.findModule(
         (m) => m.default?.displayName === "MessageAttachment"
       );
 
-      // const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
-      //   after: ({ returnValue }) => {
-      //     if (
-      //       returnValue.props?.children?.length === 0 ||
-      //       !returnValue.props.children[0]?.props?.children.length === 0 ||
-      //       !returnValue.props.children[0]?.props?.children[2]?.props.href
-      //     ) return;
-
-          
-      //     console.log(returnValue);
-      //     return;
-
-      //     const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
-      //     if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
-
-      //     const originalChildren = [...returnValue.props.children];
-      //     returnValue.props.children[0].props.children = [
-      //       BDFDB.ReactUtils.createElement(DlpeAttachment, {
-      //         url: fileUrl,
-      //         originalChildren
-      //       })
-      //     ];
-      //   }
-      // });
-
       const cleanAttachmentPatch = BdApi.monkeyPatch(MessageAttachmentModule, "default", {
         after: ({ returnValue }) => {
           const fileUrl = returnValue?.props?.children?.props?.attachment?.url;
-          if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
+          if (!fileUrl.toLowerCase().endsWith(".dlpe")) return;
 
           const originalChildren = { ...returnValue.props.children };
           returnValue.props.children = [
@@ -1895,11 +1989,6 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
       await BdApi.linkJS(INJECTED_JS_MIDI_ID, "https://unpkg.com/@tonejs/midi");
       this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_MIDI_ID));
       
-      // Inject ZIP JS library.
-      const INJECTED_JS_ZIP_ID = "DLE_LAUNCHPAD_INJECTED_ZIP_JS";
-      await BdApi.linkJS(INJECTED_JS_ZIP_ID, "https://unpkg.com/jszip@latest/dist/jszip.min.js");
-      this.cleanFunctions.push(() => BdApi.unlinkJS(INJECTED_JS_ZIP_ID));
-
       // Re-define the define function.
       window.define = old_define;
 

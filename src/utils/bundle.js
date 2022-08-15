@@ -1,4 +1,4 @@
-const BUF_SIGNATURE = new Buffer.from("DLMLEVB", "ascii");
+const BUF_SIGNATURE = new Buffer.from("DLPE", "ascii");
 
 /**
  * @typedef {Buffer} input_buffer
@@ -33,12 +33,14 @@ const unbundleBuffer = (buf) => {
  */
 /**
  * Bundles into a Buffer-Bundle
- * ```
+ * @param {...input_array} input_buffers
+ * 
+ * @example
+ * ```javascript
  * const file1 = { content: Buffer.from("hello"), name: "file1" }
  * const file2 = { content: Buffer.from(fs.readFileSync("file", "binary")), name: "file2" }
- * const buf_bundled: Buffer = bundleFiles([file1, file2])
+ * const buf_bundled: Buffer = bundleBuffers([file1, file2])
  * ```
- * @param {...input_array} input_buffers
  */
 const bundleBuffers = (input_buffers) => {
   const BUF_VERSION = Buffer.allocUnsafe(1);
@@ -46,7 +48,7 @@ const bundleBuffers = (input_buffers) => {
 
   const output_buffers = [];
 
-  for ({ name: file_name, content: buf_content } of input_buffers) {
+  for (const { name: file_name, content: buf_content } of input_buffers) {
     const buf_file_name = Buffer.from(file_name, "ascii");
 
     const buf_file_name_length = Buffer.alloc(1);
