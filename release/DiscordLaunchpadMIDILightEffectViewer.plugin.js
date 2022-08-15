@@ -1817,28 +1817,46 @@ var DiscordLaunchpadMIDILightEffectViewer = (([Plugin, BDFDB]) => {
     }
 
     _setupAttachmentPatch () {
-      const AttachmentModule = BdApi.findModule(
-        (m) => m.default?.displayName === "Attachment"
+      // const AttachmentModule = BdApi.findModule(
+      //   (m) => m.default?.displayName === "Attachment"
+      // );
+
+      const MessageAttachmentModule = BdApi.findModule(
+        (m) => m.default?.displayName === "MessageAttachment"
       );
 
-      console.log("attach", AttachmentModule);
+      // const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
+      //   after: ({ returnValue }) => {
+      //     if (
+      //       returnValue.props?.children?.length === 0 ||
+      //       !returnValue.props.children[0]?.props?.children.length === 0 ||
+      //       !returnValue.props.children[0]?.props?.children[2]?.props.href
+      //     ) return;
 
-      const cleanAttachmentPatch = BdApi.monkeyPatch(AttachmentModule, "default", {
+          
+      //     console.log(returnValue);
+      //     return;
+
+      //     const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
+      //     if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
+
+      //     const originalChildren = [...returnValue.props.children];
+      //     returnValue.props.children[0].props.children = [
+      //       BDFDB.ReactUtils.createElement(DlpeAttachment, {
+      //         url: fileUrl,
+      //         originalChildren
+      //       })
+      //     ];
+      //   }
+      // });
+
+      const cleanAttachmentPatch = BdApi.monkeyPatch(MessageAttachmentModule, "default", {
         after: ({ returnValue }) => {
-          console.log(returnValue);
-          if (
-            returnValue.props?.children?.length === 0 ||
-            !returnValue.props.children[0]?.props?.children.length === 0 ||
-            !returnValue.props.children[0]?.props?.children[2]?.props.href
-          ) return;
-
-          const fileUrl = returnValue.props.children[0]?.props?.children[2]?.props.href;
-          console.log(fileUrl);
+          const fileUrl = returnValue?.props?.children?.props?.attachment?.url;
           if (!fileUrl.toLowerCase().endsWith(".dlpe.zip")) return;
 
-
-          const originalChildren = [...returnValue.props.children];
-          returnValue.props.children[0].props.children = [
+          const originalChildren = { ...returnValue.props.children };
+          returnValue.props.children = [
             BDFDB.ReactUtils.createElement(DlpeAttachment, {
               url: fileUrl,
               originalChildren
