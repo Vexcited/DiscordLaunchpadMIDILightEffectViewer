@@ -6,7 +6,7 @@ import DlpeAttachment from "../patchs/DlpeAttachment";
 
 import { WebMidi } from "webmidi";
 
-import { bundleBuffers } from "../utils/bundle";
+import { bundleBuffers } from "../utils/bundler";
 
 import {
   removeMidiPermissions,
@@ -162,21 +162,12 @@ export default (([Plugin, BDFDB]) => {
                     onClick: async () => {
                       BDFDB.LibraryModules.ModalUtils.closeAllModals();
 
-                      const effect_file = {
-                        content: Buffer.from(await midiFile.file.arrayBuffer()),
-                        name: "effect.mid" 
-                      };
-
-                      const infos_file = {
-                        content: Buffer.from(JSON.stringify({
-                          name: midiFileName,
-                          type: launchpadType
-                        },  null, 2), "utf8"),
-                        name: "infos.json"
+                      const inputObj = {
+                        "effect.mid": Buffer.from(await midiFile.file.arrayBuffer()),
+                        "infos.json": Buffer.from(JSON.stringify({ name: midiFileName, type: launchpadType },  null, 2), "utf8")
                       }
 
-                      const files = [effect_file, infos_file];
-                      const bundle = bundleBuffers(files);
+                      const bundle = bundleBuffers(inputObj);
                       
                       const blob = new window.Blob([bundle]);
                       const file = new File([blob], midiFileName + ".dlpe");
